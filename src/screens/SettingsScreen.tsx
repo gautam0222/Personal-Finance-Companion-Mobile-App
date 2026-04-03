@@ -31,7 +31,7 @@ import { Radius, Spacing } from '../constants/spacing';
 import { FontSize } from '../constants/typography';
 import type { RootStackParamList } from '../types';
 import { calcBalanceStats } from '../utils/calculations';
-import { exportAppDataAsync } from '../utils/export';
+import { exportAsJSON, exportAsCSV, exportAsPDF, ExportFormat } from '../utils/export';
 import { formatCurrency } from '../utils/formatters';
 import {
   authenticateForUnlockAsync,
@@ -505,17 +505,34 @@ export const SettingsScreen: React.FC = () => {
     ]);
   };
 
-  const handleExport = async () => {
+  const handleExport = async (fmt: ExportFormat = 'json') => {
     setBusyAction('export');
     try {
-      const fileUri = await exportAppDataAsync(settings, transactions, goals);
+      switch (fmt) {
+        case 'csv':
+          await exportAsCSV(settings, transactions);
+          break;
+        case 'pdf':
+          await exportAsPDF(settings, transactions, goals);
+          break;
+        default:
+          await exportAsJSON(settings, transactions, goals);
+      }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Export ready', `Your data export was prepared successfully.\n\n${fileUri}`);
     } catch {
       Alert.alert('Export failed', 'Your data could not be exported right now.');
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const presentExportOptions = () => {
+    Alert.alert('Export Data', 'Choose a format', [
+      { text: 'PDF Report', onPress: () => void handleExport('pdf') },
+      { text: 'CSV Spreadsheet', onPress: () => void handleExport('csv') },
+      { text: 'JSON (Raw)', onPress: () => void handleExport('json') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleClear = () => {
@@ -752,8 +769,8 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="download-outline"
             label="Export Data"
-            value={busyAction === 'export' ? 'Preparing...' : 'JSON'}
-            onPress={() => void handleExport()}
+            value={busyAction === 'export' ? 'Preparing...' : 'PDF · CSV · JSON'}
+            onPress={presentExportOptions}
           />
           <Row icon="trash-outline" label="Clear All Transactions" danger onPress={handleClear} />
           <Row icon="refresh-outline" label="Reset App" danger onPress={handleReset} last />

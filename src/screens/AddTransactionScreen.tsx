@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, TextInput, Alert,
+  StyleSheet, KeyboardAvoidingView, Platform, TextInput, Alert, Image, ActionSheetIOS
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { saveReceiptImageLocally, deleteReceiptImage } from '../utils/imageHelpers';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
@@ -42,6 +44,7 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
   const [category,    setCategory]    = useState(existing?.category ?? 'food');
   const [date,        setDate]        = useState(existing?.date ?? format(new Date(), 'yyyy-MM-dd'));
   const [note,        setNote]        = useState(existing?.note ?? '');
+  const [receipt,     setReceipt]     = useState<string | undefined>(existing?.receiptUri);
   const [loading,     setLoading]     = useState(false);
   const [amountError, setAmountError] = useState('');
 
@@ -61,6 +64,83 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
     setAmount((p) => p + key);
   };
 
+  const presentReceiptOptions = async () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Take Photo', 'Choose from Library'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) void handleTakeReceipt();
+          else if (buttonIndex === 2) void handlePickReceipt();
+        }
+      );
+    } else {
+      Alert.alert('Attach Receipt', 'Choose an option', [
+        { text: 'Take Photo', onPress: handleTakeReceipt },
+        { text: 'Choose from Library', onPress: handlePickReceipt },
+        { text: 'Cancel', style: 'cancel' }
+      ]);
+    }
+  };
+
+  const handleTakeReceipt = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Camera access is required to take photos.');
+      return;
+    }
+    try {
+      let result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setLoading(true);
+        const localUri = await saveReceiptImageLocally(result.assets[0].uri);
+        setReceipt(localUri);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', `Could not attach receipt: ${err.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePickReceipt = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Gallery access is required to choose photos.');
+      return;
+    }
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setLoading(true);
+        const localUri = await saveReceiptImageLocally(result.assets[0].uri);
+        setReceipt(localUri);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', `Could not attach receipt image: ${err.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveReceipt = async () => {
+    if (receipt && receipt !== existing?.receiptUri) {
+      await deleteReceiptImage(receipt);
+    }
+    setReceipt(undefined);
+  };
+
   const handleSave = async () => {
     const parsed = parseFloat(amount);
     if (!amount || isNaN(parsed) || parsed <= 0) {
@@ -71,9 +151,12 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
     setLoading(true);
     try {
       if (isEdit && editId) {
-        await updateTransaction(editId, { amount: parsed, type, category, date, note });
+        await updateTransaction(editId, { amount: parsed, type, category, date, note, receiptUri: receipt });
+        if (existing.receiptUri && existing.receiptUri !== receipt) {
+          deleteReceiptImage(existing.receiptUri);
+        }
       } else {
-        await addTransaction({ amount: parsed, type, category, date, note });
+        await addTransaction({ amount: parsed, type, category, date, note, receiptUri: receipt });
       }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
@@ -94,6 +177,9 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           style: 'destructive',
           onPress: async () => {
             await deleteTransaction(editId);
+            if (existing?.receiptUri) {
+              deleteReceiptImage(existing.receiptUri);
+            }
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             navigation.goBack();
           },
@@ -240,6 +326,55 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           </View>
         </View>
 
+        {/* Receipt Attachment */}
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Receipt</Text>
+          {receipt ? (
+            <View style={[styles.receiptCard, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
+              <Image 
+                source={{ uri: receipt }} 
+                style={styles.receiptImage}
+                resizeMode="cover"
+              />
+              <View style={styles.receiptOverlay}>
+                <TouchableOpacity
+                  onPress={presentReceiptOptions}
+                  style={[styles.receiptAction, { backgroundColor: `${colors.primary}CC` }]}
+                >
+                  <Ionicons name="camera-outline" size={16} color="#FFF" />
+                  <Text style={styles.receiptActionText}>Replace</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleRemoveReceipt}
+                  style={[styles.receiptAction, { backgroundColor: `${colors.expenseText}CC` }]}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FFF" />
+                  <Text style={styles.receiptActionText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={presentReceiptOptions}
+              activeOpacity={0.7}
+              style={[styles.receiptEmpty, { 
+                backgroundColor: colors.cardElevated, 
+                borderColor: `${colors.textTertiary}40`,
+              }]}
+            >
+              <View style={[styles.receiptIconCircle, { backgroundColor: `${colors.primary}18` }]}>
+                <Ionicons name="receipt-outline" size={28} color={colors.primary} />
+              </View>
+              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, fontWeight: '500', marginTop: Spacing[2] }}>
+                Tap to attach a receipt
+              </Text>
+              <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginTop: 2 }}>
+                Camera or photo library
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <Button
           label={isEdit ? 'Save Changes' : `Add ${type === 'income' ? 'Income' : 'Expense'}`}
           onPress={handleSave}
@@ -324,5 +459,48 @@ const styles = StyleSheet.create({
   deleteBtnText: {
     fontSize: FontSize.sm,
     fontWeight: '600',
+  },
+  receiptCard: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  receiptImage: {
+    width: '100%',
+    height: 200,
+  },
+  receiptOverlay: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing[3],
+    paddingVertical: Spacing[3],
+  },
+  receiptAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    borderRadius: Radius.full,
+  },
+  receiptActionText: {
+    color: '#FFF',
+    fontSize: FontSize.sm,
+    fontWeight: '600',
+  },
+  receiptEmpty: {
+    borderRadius: Radius.lg,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing[6],
+  },
+  receiptIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

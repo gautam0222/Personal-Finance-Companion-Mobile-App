@@ -22,6 +22,9 @@ Animated gradient ring on every launch. Users unlock levels: `🌱 Novice → �
 7 types of locally-computed insights shown as horizontal swipeable cards:
 budget warnings at 70% and 90%, week-over-week spending changes, top category callouts, savings rate coaching, streak celebrations, and new-user nudges. No API. No internet. All computed from local transaction data.
 
+### True End-to-End Cloud Sync (E2EE)
+Firebase integration that allows users to seamlessly back up their app state to the cloud. Before exiting the device, all financial data is mathematically scrambled into cipher text via AES-256 encryption using a local password. Not even database administrators can read the user's data.
+
 ### Native-Feeling Interactions
 - **Swipe-to-delete** transactions with spring physics and confirmation
 - **Custom numpad** for amount entry (no keyboard covering the form)
@@ -97,6 +100,8 @@ flo-finance/
 | Framework | React Native + Expo SDK 51 | Cross-platform, fast demo, no native build needed |
 | State | Zustand | Zero boilerplate, built-in selectors, TypeScript-first |
 | Persistence | AsyncStorage | Simple key-value; typed wrapper for safety |
+| Cloud Sync | Firebase Firestore + Auth | Passwordless email linking with secure storage |
+| Security | expo-secure-store + crypto-js | Fallback-capable Keystores + AES-256 End-to-End Encryption |
 | Navigation | React Navigation v6 | Industry standard, native animations |
 | Charts | Custom SVG (react-native-svg) | Full design control, no heavy chart library deps |
 | Animations | Animated API + Reanimated 2 | Ring progress + swipe gestures |
@@ -164,7 +169,10 @@ npm start
 | Dark mode | ✅ Full dark + light theme, toggleable, respects system |
 | Animated transitions | ✅ Ring animation, swipe physics, fade navigation |
 | Offline-first | ✅ 100% local, zero network required |
+| Cloud Sync | ✅ Firebase Firestore with AES-256 state encryption |
+| Data export | ✅ JSON export in settings |
 | Profile / settings | ✅ Name, currency, budget all editable |
+| Biometric lock | ✅ Optional passcode/FaceID/TouchID via local-auth |
 | Multi-currency | ✅ INR, USD, EUR, GBP, JPY, AED |
 
 ---

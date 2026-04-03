@@ -6,6 +6,7 @@ export interface Transaction {
   category: string;
   date: string;        // ISO date string (YYYY-MM-DD)
   note: string;
+  receiptUri?: string; // Local file URI to the image
   createdAt: string;   // ISO datetime
   updatedAt: string;
 }
