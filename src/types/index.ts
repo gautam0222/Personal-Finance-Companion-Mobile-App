@@ -47,6 +47,12 @@ export interface AppSettings {
   hasOnboarded: boolean;
   theme: ThemeMode;
   monthlyBudget: number;
+  appLockEnabled: boolean;
+  biometricLockEnabled: boolean;
+  lockGracePeriodSeconds: number;
+  notificationsEnabled: boolean;
+  reminderHour: number;
+  reminderMinute: number;
 }
 
 // Karma / gamification

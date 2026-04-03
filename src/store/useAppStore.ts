@@ -25,6 +25,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   hasOnboarded: false,
   theme: 'dark',
   monthlyBudget: 0,
+  appLockEnabled: false,
+  biometricLockEnabled: false,
+  lockGracePeriodSeconds: 30,
+  notificationsEnabled: false,
+  reminderHour: 20,
+  reminderMinute: 0,
 };
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -36,7 +42,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ isLoading: true });
     try {
       const saved = await Storage.get<AppSettings>(Storage.KEYS.APP_SETTINGS);
-      const settings = saved ? { ...DEFAULT_SETTINGS, ...saved } : DEFAULT_SETTINGS;
+      const merged = saved ? { ...DEFAULT_SETTINGS, ...saved } : DEFAULT_SETTINGS;
+      const settings: AppSettings = {
+        ...merged,
+        appLockEnabled:
+          saved != null && 'appLockEnabled' in saved
+            ? Boolean(merged.appLockEnabled)
+            : Boolean(merged.biometricLockEnabled),
+        biometricLockEnabled: Boolean(merged.biometricLockEnabled),
+        lockGracePeriodSeconds: merged.lockGracePeriodSeconds ?? 30,
+      };
       set({ settings, isHydrated: true });
     } catch {
       set({ settings: DEFAULT_SETTINGS, isHydrated: true });
