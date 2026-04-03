@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Flo Finance",
+    "slug": "flo-finance",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D14"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.flo.finance",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID to unlock Flo Finance"
+      }
+    },
+    "android": {
+      "package": "com.flo.finance",
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0D0D14"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
