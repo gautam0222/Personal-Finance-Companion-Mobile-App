@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, TextInput,
+  StyleSheet, KeyboardAvoidingView, Platform, TextInput, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +31,7 @@ const KEYPAD = [
 export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors, isDark } = useTheme();
   const settings             = useAppStore((s) => s.settings);
-  const { transactions, addTransaction, updateTransaction } = useTransactionStore();
+  const { transactions, addTransaction, updateTransaction, deleteTransaction } = useTransactionStore();
 
   const editId   = route.params?.transactionId;
   const existing = editId ? transactions.find((t) => t.id === editId) : undefined;
@@ -80,6 +80,26 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = () => {
+    if (!editId) return;
+    Alert.alert(
+      'Delete Transaction',
+      'This transaction will be permanently removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteTransaction(editId);
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            navigation.goBack();
+          },
+        },
+      ],
+    );
   };
 
   const accentColor = type === 'income' ? colors.incomeText : colors.expenseText;
@@ -227,6 +247,20 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           style={{ marginTop: Spacing[2], marginHorizontal: Spacing[4] }}
         />
 
+        {/* Delete button — only shown in edit mode */}
+        {isEdit && (
+          <TouchableOpacity
+            onPress={handleDelete}
+            activeOpacity={0.75}
+            style={[styles.deleteBtn, { borderColor: colors.expenseText + '40' }]}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.expenseText} />
+            <Text style={[styles.deleteBtnText, { color: colors.expenseText }]}>
+              Delete Transaction
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <View style={{ height: 60 }} />
       </ScrollView>
     </View>
@@ -275,5 +309,20 @@ const styles = StyleSheet.create({
   noteBox: {
     borderRadius: Radius.lg, borderWidth: 1,
     padding: Spacing[4], minHeight: 68,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    marginTop: Spacing[4],
+    marginHorizontal: Spacing[4],
+    paddingVertical: Spacing[4],
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+  },
+  deleteBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: '600',
   },
 });

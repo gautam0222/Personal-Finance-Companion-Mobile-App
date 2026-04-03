@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -147,6 +147,13 @@ export const SettingsScreen: React.FC = () => {
   const [pendingPasscode, setPendingPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [passcodeStatus, setPasscodeStatus] = useState('');
+  // Track biometric-in-flight separately so the button shows a spinner
+  const [biometricAuthFlow, setBiometricAuthFlow] = useState(false);
+  // Stable ref to biometricSupport for use inside async callbacks
+  const biometricSupportRef = useRef<BiometricSupportResult | null>(null);
+  // Re-entrancy guard for the passcode-advance effect — a ref so it never
+  // triggers a re-render / effect restart (unlike busyAction state).
+  const isAdvancingRef = useRef(false);
 
   const stats = calcBalanceStats(transactions);
   const sym = settings.currencySymbol;
@@ -156,7 +163,10 @@ export const SettingsScreen: React.FC = () => {
   useEffect(() => {
     let active = true;
     void getBiometricSupportAsync().then((support) => {
-      if (active) setBiometricSupport(support);
+      if (active) {
+        setBiometricSupport(support);
+        biometricSupportRef.current = support;
+      }
     });
     return () => {
       active = false;
@@ -164,6 +174,8 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   const resetPasscodeFlow = () => {
+    // Reset the re-entrancy guard so a re-opened modal starts clean.
+    isAdvancingRef.current = false;
     setPasscodeValue('');
     setPendingPasscode('');
     setPasscodeError('');
@@ -227,18 +239,22 @@ export const SettingsScreen: React.FC = () => {
       if (enabled) {
         const support = await getBiometricSupportAsync();
         setBiometricSupport(support);
+        biometricSupportRef.current = support;
         if (!support.supported) {
           Alert.alert('Biometric unlock unavailable', support.reason);
           return;
         }
 
+        setBiometricAuthFlow(true);
         const authenticated = await authenticateForUnlockAsync(`Enable ${support.label} unlock`);
+        setBiometricAuthFlow(false);
         if (!authenticated) return;
       }
 
       await updateSettings({ biometricLockEnabled: enabled });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } finally {
+      setBiometricAuthFlow(false);
       setBusyAction(null);
     }
   };
@@ -290,44 +306,28 @@ export const SettingsScreen: React.FC = () => {
     ]);
   };
 
-  const handleSecurityDigitPress = (digit: string) => {
-    if (busyAction === 'security' || passcodeValue.length >= 4) return;
-    setPasscodeError('');
-    setPasscodeStatus('');
-    setPasscodeValue((current) => `${current}${digit}`);
-  };
-
-  const handleSecurityBackspace = () => {
-    if (busyAction === 'security' || passcodeValue.length === 0) return;
-    setPasscodeError('');
-    setPasscodeStatus('');
-    setPasscodeValue((current) => current.slice(0, -1));
-  };
+  // ─── Passcode finalization helpers ───────────────────────────────────────────
 
   const completePasscodeSetup = async (code: string) => {
     setBusyAction('security');
     setPasscodeStatus('Saving passcode...');
-
     try {
       await saveAppPasscodeAsync(code);
       let nextBiometricSetting = false;
-
-      if (biometricSupport?.supported) {
-        setPasscodeStatus(`Checking ${biometricSupport.label}...`);
-        nextBiometricSetting = await authenticateForUnlockAsync(
-          `Enable ${biometricSupport.label} unlock`,
-        );
+      const support = biometricSupportRef.current;
+      if (support?.supported) {
+        setBiometricAuthFlow(true);
+        setPasscodeStatus(`Enable ${support.label}?`);
+        nextBiometricSetting = await authenticateForUnlockAsync(`Enable ${support.label} unlock`);
+        setBiometricAuthFlow(false);
       }
-
-      await updateSettings({
-        appLockEnabled: true,
-        biometricLockEnabled: nextBiometricSetting,
-      });
+      await updateSettings({ appLockEnabled: true, biometricLockEnabled: nextBiometricSetting });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       closeSecurityModal(true);
     } catch {
-      Alert.alert('App lock failed', 'Flo could not save your passcode right now.');
+      Alert.alert('App lock failed', 'Flo could not save your passcode. Please try again.');
     } finally {
+      setBiometricAuthFlow(false);
       setBusyAction(null);
       setPasscodeStatus('');
     }
@@ -336,25 +336,39 @@ export const SettingsScreen: React.FC = () => {
   const completePasscodeChange = async (code: string) => {
     setBusyAction('security');
     setPasscodeStatus('Updating passcode...');
-
     try {
       await saveAppPasscodeAsync(code);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       closeSecurityModal(true);
     } catch {
-      Alert.alert('Passcode update failed', 'Flo could not update your passcode right now.');
+      Alert.alert('Passcode update failed', 'Flo could not update your passcode. Please try again.');
     } finally {
       setBusyAction(null);
       setPasscodeStatus('');
     }
   };
 
-  useEffect(() => {
-    if (!showSecurityModal || passcodeValue.length !== 4 || busyAction === 'security') return;
+  // ─── Passcode state machine ──────────────────────────────────────────────────
+  // Implemented as a plain async event handler rather than a useEffect so that
+  // passcodeStep / pendingPasscode are always read from the CURRENT render's
+  // closure (the handler is re-created on every render because passcodeValue
+  // changes on each digit press, so the closure is never stale).
+  //
+  // isAdvancingRef is a synchronous ref-based re-entrancy guard.  Using a ref
+  // (not state) means setting it never causes a re-render or effect restart.
 
-    let active = true;
+  const handleSecurityDigitPress = (digit: string) => {
+    if (isAdvancingRef.current || passcodeValue.length >= 4) return;
+    setPasscodeError('');
+    setPasscodeStatus('');
+    setPasscodeValue((current) => current + digit);
+  };
 
-    const advance = async () => {
+  const handlePasscodeSubmit = async () => {
+    if (passcodeValue.length < 4 || isAdvancingRef.current) return;
+    
+    isAdvancingRef.current = true;
+    try {
       switch (passcodeStep) {
         case 'create':
           setPendingPasscode(passcodeValue);
@@ -362,65 +376,69 @@ export const SettingsScreen: React.FC = () => {
           setPasscodeStatus('Confirm your passcode');
           setPasscodeStep('confirm');
           break;
+
         case 'confirm':
           if (passcodeValue !== pendingPasscode) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            if (!active) return;
             setPasscodeValue('');
             setPendingPasscode('');
-            setPasscodeError('Those codes did not match. Try again.');
+            setPasscodeError("Codes don't match. Start over.");
             setPasscodeStatus('');
             setPasscodeStep('create');
-            return;
+            break;
           }
           await completePasscodeSetup(passcodeValue);
           break;
+
         case 'verifyCurrent': {
           setBusyAction('security');
-          setPasscodeStatus('Checking current passcode...');
+          setPasscodeStatus('Checking passcode…');
           const matches = await verifyAppPasscodeAsync(passcodeValue);
-          if (!active) return;
           setBusyAction(null);
           if (!matches) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             setPasscodeValue('');
-            setPasscodeError('That passcode is incorrect.');
+            setPasscodeError('Incorrect passcode. Try again.');
             setPasscodeStatus('');
-            return;
+            break;
           }
           setPasscodeValue('');
           setPasscodeStatus('');
           setPasscodeStep('createNew');
-          return;
+          break;
         }
+
         case 'createNew':
           setPendingPasscode(passcodeValue);
           setPasscodeValue('');
           setPasscodeStatus('Confirm your new passcode');
           setPasscodeStep('confirmNew');
           break;
+
         case 'confirmNew':
           if (passcodeValue !== pendingPasscode) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            if (!active) return;
             setPasscodeValue('');
             setPendingPasscode('');
-            setPasscodeError('Those codes did not match. Try again.');
+            setPasscodeError("Codes don't match. Start over.");
             setPasscodeStatus('');
             setPasscodeStep('createNew');
-            return;
+            break;
           }
           await completePasscodeChange(passcodeValue);
           break;
       }
-    };
+    } finally {
+      isAdvancingRef.current = false;
+    }
+  };
 
-    void advance();
-
-    return () => {
-      active = false;
-    };
-  }, [busyAction, passcodeStep, passcodeValue, pendingPasscode, showSecurityModal, biometricSupport]);
+  const handleSecurityBackspace = () => {
+    if (isAdvancingRef.current) return;
+    setPasscodeError('');
+    setPasscodeStatus('');
+    setPasscodeValue((current) => current.slice(0, -1));
+  };
 
   const securityPanelCopy = useMemo(() => {
     switch (passcodeStep) {
@@ -452,6 +470,8 @@ export const SettingsScreen: React.FC = () => {
       return;
     }
 
+    // NOTE: Do NOT set busyAction here — that would disable the Switch *before*
+    // the Alert appears, causing it to snap back visually.
     Alert.alert(
       'Turn off app lock?',
       'Flo will stop asking for your passcode or biometrics when reopened.',
@@ -461,6 +481,7 @@ export const SettingsScreen: React.FC = () => {
           text: 'Turn Off',
           style: 'destructive',
           onPress: async () => {
+            // Only mark busy after the user confirms.
             setBusyAction('security');
             try {
               await removeAppPasscodeAsync();
@@ -512,20 +533,30 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleReset = () => {
-    Alert.alert('Reset App', 'Delete all data and return to onboarding? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reset',
-        style: 'destructive',
-        onPress: async () => {
-          await disableDailyReminderAsync();
-          await removeAppPasscodeAsync();
-          await resetApp();
-          navigation.replace('Onboarding');
+    Alert.alert(
+      'Reset App',
+      'Delete ALL data and return to onboarding? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              try { await disableDailyReminderAsync(); } catch {}
+              try { await removeAppPasscodeAsync(); } catch {}
+              await resetApp();
+              // Navigate after resetting so the store is settled before routing
+              navigation.replace('Onboarding');
+            } catch {
+              Alert.alert('Reset failed', 'Something went wrong. Please try again.');
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
+
 
   const securityHelperCopy = settings.appLockEnabled
     ? `Flo relocks ${formatLockDelay(settings.lockGracePeriodSeconds).toLowerCase()} after you leave the app. Your 4-digit passcode always stays available as backup.${settings.biometricLockEnabled && biometricSupport?.supported ? ` ${biometricSupport.label} stays on for faster unlock.` : ''}`
@@ -713,8 +744,13 @@ export const SettingsScreen: React.FC = () => {
 
         <Text style={[styles.groupLabel, { color: colors.textTertiary }]}>Data</Text>
         <Group>
+          <Row 
+            icon="cloud-upload-outline" 
+            label="Cloud Backup Vault" 
+            onPress={() => navigation.navigate('Backup')} 
+          />
           <Row
-            icon="share-social-outline"
+            icon="download-outline"
             label="Export Data"
             value={busyAction === 'export' ? 'Preparing...' : 'JSON'}
             onPress={() => void handleExport()}
@@ -812,9 +848,14 @@ export const SettingsScreen: React.FC = () => {
         presentationStyle="pageSheet"
         onRequestClose={() => closeSecurityModal()}
       >
-        <View style={[styles.modal, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={[styles.modal, { backgroundColor: colors.background }]}>
           <View style={[styles.modalNav, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => closeSecurityModal()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <TouchableOpacity
+              onPress={() => closeSecurityModal()}
+              disabled={busyAction === 'security'}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={{ opacity: busyAction === 'security' ? 0.35 : 1 }}
+            >
               <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: colors.text }]}>
@@ -828,17 +869,21 @@ export const SettingsScreen: React.FC = () => {
               title={securityPanelCopy.title}
               subtitle={securityPanelCopy.subtitle}
               code={passcodeValue}
-              processing={busyAction === 'security'}
+              processing={busyAction === 'security' || isAdvancingRef.current}
               error={passcodeError}
               status={passcodeStatus}
               onDigitPress={handleSecurityDigitPress}
               onBackspace={handleSecurityBackspace}
+              secondaryActionIcon={passcodeValue.length === 4 ? 'checkmark' : undefined}
+              secondaryActionLabel={passcodeValue.length === 4 ? 'Submit' : undefined}
+              onSecondaryAction={passcodeValue.length === 4 ? handlePasscodeSubmit : undefined}
+              biometricAuthenticating={biometricAuthFlow}
             />
             <Text style={[styles.helperText, { color: colors.textTertiary, marginTop: Spacing[4] }]}>
               Your passcode stays on this device in secure storage.
             </Text>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

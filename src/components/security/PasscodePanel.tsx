@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
+  ActivityIndicator,
+  Animated,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -24,9 +26,47 @@ interface Props {
   secondaryActionIcon?: keyof typeof Ionicons.glyphMap;
   onSecondaryAction?: () => void;
   secondaryActionDisabled?: boolean;
+  /** Set to true while biometric auth is in-flight to show a spinner */
+  biometricAuthenticating?: boolean;
 }
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+// Animated dot — springs up slightly when filled
+function AnimatedDot({ filled, color, border }: { filled: boolean; color: string; border: string }) {
+  const scale = useRef(new Animated.Value(filled ? 1 : 0.85)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: filled ? 1.15 : 0.85,
+      tension: 200,
+      friction: 8,
+      useNativeDriver: true,
+    }).start(() => {
+      if (filled) {
+        Animated.spring(scale, {
+          toValue: 1,
+          tension: 200,
+          friction: 8,
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+  }, [filled]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.dot,
+        {
+          backgroundColor: filled ? color : 'transparent',
+          borderColor: filled ? color : border,
+          transform: [{ scale }],
+        },
+      ]}
+    />
+  );
+}
 
 export const PasscodePanel: React.FC<Props> = ({
   title,
@@ -41,21 +81,38 @@ export const PasscodePanel: React.FC<Props> = ({
   secondaryActionIcon = 'scan-outline',
   onSecondaryAction,
   secondaryActionDisabled = false,
+  biometricAuthenticating = false,
 }) => {
   const { colors, isDark } = useTheme();
   const tone = error ? colors.expenseText : status ? colors.primaryLight : colors.textSecondary;
 
+  // Shake animation on error
+  const shakeX = useRef(new Animated.Value(0)).current;
+  const prevError = useRef(error);
+  useEffect(() => {
+    if (error && error !== prevError.current) {
+      Animated.sequence([
+        Animated.timing(shakeX, { toValue: -8, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue:  8, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: -6, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue:  6, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue:  0, duration: 50, useNativeDriver: true }),
+      ]).start();
+    }
+    prevError.current = error;
+  }, [error]);
+
   const renderDigit = (digit: string) => (
     <TouchableOpacity
       key={digit}
-      activeOpacity={0.82}
+      activeOpacity={0.75}
       disabled={processing}
       onPress={() => onDigitPress(digit)}
       style={[
         styles.key,
         {
-          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.cardElevated,
-          borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
+          backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.cardElevated,
+          borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
         },
       ]}
     >
@@ -71,11 +128,12 @@ export const PasscodePanel: React.FC<Props> = ({
       style={[
         styles.card,
         {
-          borderColor: isDark ? 'rgba(129,140,248,0.18)' : colors.border,
+          borderColor: isDark ? 'rgba(129,140,248,0.20)' : colors.border,
           shadowColor: isDark ? '#000000' : '#0F172A',
         },
       ]}
     >
+      {/* Shield icon */}
       <View style={[styles.hero, { backgroundColor: `${colors.primary}14`, borderColor: `${colors.primary}35` }]}>
         <Ionicons name="shield-checkmark-outline" size={28} color={colors.primaryLight} />
       </View>
@@ -83,71 +141,86 @@ export const PasscodePanel: React.FC<Props> = ({
       <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
 
-      <View style={styles.dots}>
-        {[0, 1, 2, 3].map((index) => {
-          const filled = index < code.length;
-          return (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: filled ? colors.primary : 'transparent',
-                  borderColor: filled ? colors.primary : colors.border,
-                },
-              ]}
-            />
-          );
-        })}
-      </View>
+      {/* Animated dots */}
+      <Animated.View style={[styles.dots, { transform: [{ translateX: shakeX }] }]}>
+        {[0, 1, 2, 3].map((index) => (
+          <AnimatedDot
+            key={index}
+            filled={index < code.length}
+            color={colors.primary}
+            border={colors.border}
+          />
+        ))}
+      </Animated.View>
 
-      <Text style={[styles.meta, { color: tone }]}>
-        {error ?? status ?? (processing ? 'Checking passcode...' : 'Enter 4 digits')}
+      {/* Status / error line — always reserves space */}
+      <Text style={[styles.meta, { color: tone }]} numberOfLines={1}>
+        {error ?? status ?? (processing && !biometricAuthenticating ? 'Checking passcode…' : '')}
       </Text>
 
+      {/* Numpad grid */}
       <View style={styles.grid}>
-        {DIGITS.map(renderDigit)}
+        {/* Row 1-2-3 */}
+        <View style={styles.row}>{['1','2','3'].map(renderDigit)}</View>
+        {/* Row 4-5-6 */}
+        <View style={styles.row}>{['4','5','6'].map(renderDigit)}</View>
+        {/* Row 7-8-9 */}
+        <View style={styles.row}>{['7','8','9'].map(renderDigit)}</View>
+        {/* Row biometric | 0 | backspace */}
+        <View style={styles.row}>
+          {onSecondaryAction ? (
+            <TouchableOpacity
+              activeOpacity={0.75}
+              disabled={processing || secondaryActionDisabled}
+              onPress={onSecondaryAction}
+              style={[
+                styles.key,
+                {
+                  backgroundColor: `${colors.primary}12`,
+                  borderColor: `${colors.primary}28`,
+                  opacity: processing || secondaryActionDisabled ? 0.45 : 1,
+                },
+              ]}
+            >
+              {biometricAuthenticating ? (
+                <ActivityIndicator size="small" color={colors.primaryLight} />
+              ) : (
+                <>
+                  <Ionicons name={secondaryActionIcon} size={20} color={colors.primaryLight} />
+                  {secondaryActionLabel != null && (
+                    <Text
+                      style={[styles.secondaryLabel, { color: colors.primaryLight }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {secondaryActionLabel}
+                    </Text>
+                  )}
+                </>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.keySpacer} />
+          )}
 
-        {onSecondaryAction ? (
+          {renderDigit('0')}
+
           <TouchableOpacity
-            activeOpacity={0.82}
-            disabled={processing || secondaryActionDisabled}
-            onPress={onSecondaryAction}
+            activeOpacity={0.75}
+            disabled={processing || code.length === 0}
+            onPress={onBackspace}
             style={[
               styles.key,
               {
-                backgroundColor: `${colors.primary}12`,
-                borderColor: `${colors.primary}24`,
-                opacity: processing || secondaryActionDisabled ? 0.45 : 1,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.cardElevated,
+                borderColor: isDark ? 'rgba(255,255,255,0.10)' : colors.border,
+                opacity: processing || code.length === 0 ? 0.45 : 1,
               },
             ]}
           >
-            <Ionicons name={secondaryActionIcon} size={20} color={colors.primaryLight} />
-            <Text style={[styles.secondaryLabel, { color: colors.primaryLight }]}>
-              {secondaryActionLabel}
-            </Text>
+            <Ionicons name="backspace-outline" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.keySpacer} />
-        )}
-
-        {renderDigit('0')}
-
-        <TouchableOpacity
-          activeOpacity={0.82}
-          disabled={processing || code.length === 0}
-          onPress={onBackspace}
-          style={[
-            styles.key,
-            {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : colors.cardElevated,
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : colors.border,
-              opacity: processing || code.length === 0 ? 0.45 : 1,
-            },
-          ]}
-        >
-          <Ionicons name="backspace-outline" size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
+        </View>
       </View>
     </LinearGradient>
   );
@@ -190,7 +263,7 @@ const styles = StyleSheet.create({
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: Spacing[2],
+    gap: Spacing[3],
     marginBottom: Spacing[2],
   },
   dot: {
@@ -204,28 +277,31 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     textAlign: 'center',
     marginBottom: Spacing[4],
+    letterSpacing: 0.1,
   },
   grid: {
+    gap: Spacing[3],
+  },
+  row: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: Spacing[3],
   },
   key: {
-    width: '30%',
-    aspectRatio: 1,
+    flex: 1,
+    aspectRatio: 1.5,
     borderRadius: Radius.xl,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
+    minHeight: 52,
   },
   keyLabel: {
-    fontSize: 28,
-    fontWeight: '600',
+    fontSize: 26,
+    fontWeight: '500',
   },
   keySpacer: {
-    width: '30%',
+    flex: 1,
   },
   secondaryLabel: {
     fontSize: FontSize.xs,

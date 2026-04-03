@@ -25,6 +25,7 @@ interface GoalStore {
   toggleActive: (id: string) => Promise<void>;
   getActiveGoals: () => Goal[];
   getCompletedGoals: () => Goal[];
+  restoreState: (goals: Goal[]) => Promise<void>;
 }
 
 export const useGoalStore = create<GoalStore>((set, get) => ({
@@ -111,4 +112,9 @@ export const useGoalStore = create<GoalStore>((set, get) => ({
 
   getActiveGoals: () => get().goals.filter((goal) => goal.isActive && !goal.isCompleted),
   getCompletedGoals: () => get().goals.filter((goal) => goal.isCompleted),
+  
+  restoreState: async (goals) => {
+    set({ goals });
+    await Storage.set(Storage.KEYS.GOALS, goals);
+  },
 }));

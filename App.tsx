@@ -4,6 +4,7 @@ import {
   AppState,
   AppStateStatus,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -232,17 +233,17 @@ export default function App() {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
-      const wasBackgrounded =
-        appState.current === 'background' || appState.current === 'inactive';
-
-      if (nextState === 'background' || nextState === 'inactive') {
+      // Only record background timestamp when truly backgrounded (not a brief
+      // 'inactive' pulse from a system dialog/notification on Android).
+      if (nextState === 'background') {
         backgroundedAtRef.current = Date.now();
       }
 
+      const wasBackground = appState.current === 'background';
       appState.current = nextState;
 
       if (
-        wasBackgrounded &&
+        wasBackground &&
         nextState === 'active' &&
         securityReady &&
         settings.appLockEnabled &&
@@ -325,7 +326,20 @@ export default function App() {
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <RootNavigator />
           {securityReady && isLocked && (
-            <View style={styles.lockOverlay}>
+            <View
+              style={[
+                styles.lockOverlay,
+                { backgroundColor: isDark ? 'rgba(8,12,20,0.95)' : 'rgba(248,250,252,0.96)' },
+              ]}
+            >
+              {/* App brand mark */}
+              <View style={styles.lockBrand}>
+                <View style={[styles.lockLogo, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(79,70,229,0.10)', borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(79,70,229,0.25)' }]}>
+                  <Text style={[styles.lockLogoMark, { color: isDark ? '#818CF8' : '#4F46E5' }]}>✦</Text>
+                </View>
+                <Text style={[styles.lockAppName, { color: isDark ? '#94A3B8' : '#64748B' }]}>Flo Finance</Text>
+              </View>
+
               <View style={styles.lockCard}>
                 <PasscodePanel
                   title="Flo Finance is locked"
@@ -336,6 +350,7 @@ export default function App() {
                   status={passcodeStatus}
                   onDigitPress={handleDigitPress}
                   onBackspace={handleBackspace}
+                  biometricAuthenticating={isAuthenticating}
                   secondaryActionLabel={settings.biometricLockEnabled ? biometricLabel : undefined}
                   secondaryActionIcon="scan-outline"
                   onSecondaryAction={
@@ -355,10 +370,32 @@ export default function App() {
 const styles = StyleSheet.create({
   lockOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,12,20,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+    gap: 16,
+  },
+  lockBrand: {
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  lockLogo: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockLogoMark: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  lockAppName: {
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
   lockCard: {
     width: '100%',

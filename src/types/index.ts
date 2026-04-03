@@ -113,6 +113,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   MainTabs: undefined;
   AddTransaction: { transactionId?: string } | undefined;
+  Backup: undefined;
 };
 
 export type TabParamList = {

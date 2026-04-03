@@ -13,6 +13,7 @@ import { useGoalStore }         from '../store/useGoalStore';
 
 import { OnboardingScreen }     from '../screens/OnboardingScreen';
 import { AddTransactionScreen } from '../screens/AddTransactionScreen';
+import { BackupScreen }         from '../screens/BackupScreen';
 import { TabNavigator }         from './TabNavigator';
 
 import type { RootStackParamList } from '../types';
@@ -78,6 +79,16 @@ export const RootNavigator: React.FC = () => {
       <Stack.Screen
         name="AddTransaction"
         component={AddTransactionScreen}
+        options={{
+          animation:         'slide_from_bottom',
+          presentation:      'card',
+          gestureEnabled:    true,
+          gestureDirection:  'vertical',
+        }}
+      />
+      <Stack.Screen
+        name="Backup"
+        component={BackupScreen}
         options={{
           animation:         'slide_from_bottom',
           presentation:      'card',

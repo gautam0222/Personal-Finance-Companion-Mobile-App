@@ -83,6 +83,7 @@ interface TransactionStore {
   ) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   deleteAllTransactions: () => Promise<void>;
+  restoreState: (transactions: Transaction[]) => Promise<void>;
   setFilter: (partial: Partial<FilterState>) => void;
   resetFilter: () => void;
 }
@@ -147,6 +148,11 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
   deleteAllTransactions: async () => {
     set({ transactions: [] });
     await Storage.set(Storage.KEYS.TRANSACTIONS, []);
+  },
+
+  restoreState: async (transactions) => {
+    set({ transactions });
+    await Storage.set(Storage.KEYS.TRANSACTIONS, transactions);
   },
 
   setFilter: (partial) => {
