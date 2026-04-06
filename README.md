@@ -2,7 +2,9 @@
 
 > *Money, flowing your way.*
 
-A polished personal finance companion built with React Native + Expo for the competition assignment. Designed to feel **personal**, work **offline-first**, and be **intuitive enough for any user** while surfacing genuinely useful financial insights.
+A polished personal finance companion built with React Native + Expo for the competition assignment. Designed to feel **personal**, work **offline-first**, and be **intuitive enough for any user** while surfacing genuinely useful financial insights. 
+
+Originally conceived as "Flo Finance", this application has been fully rebranded and engineered into a robust, production-ready product: **WalletWarp**.
 
 ---
 
@@ -18,19 +20,25 @@ A gamified 0–100 financial health score computed live from real data:
 
 Animated gradient ring on every launch. Users unlock levels: `🌱 Novice → ⚡ Tracker → 🌟 Saver → 💎 Master → 👑 Legend`. Personal finance that feels like a game worth playing.
 
-### Smart Insight Engine
-7 types of locally-computed insights shown as horizontal swipeable cards:
-budget warnings at 70% and 90%, week-over-week spending changes, top category callouts, savings rate coaching, streak celebrations, and new-user nudges. No API. No internet. All computed from local transaction data.
+### Robust Recurring Transactions Engine
+Automate your financial tracking with a built-in recurrence engine. Support for `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, and `yearly` rules. The smart background processor auto-generates your pending transactions the moment you launch the app—meaning you never have to manually log your rent, streaming subscriptions, or salary ever again. Complete with a dedicated dashboard to understand your monthly scheduled cash flow.
 
 ### True End-to-End Cloud Sync (E2EE)
-Firebase integration that allows users to seamlessly back up their app state to the cloud. Before exiting the device, all financial data is mathematically scrambled into cipher text via AES-256 encryption using a local password. Not even database administrators can read the user's data.
+Firebase integration that allows users to seamlessly back up their app state to the cloud. Before exiting your device, all financial data is mathematically scrambled into cipher text via **AES-256 encryption** using a local password. Your password never leaves your device and acts as your End-to-End Encryption key. Not even the cloud database administrators can read the user's financial data.
+
+### Secure App Lock & Biometrics
+WalletWarp features a fully integrated application lock state. Users can create a custom 4-digit passcode, complemented by system-level hardware **Biometrics** (FaceID/TouchID/Fingerprint). Includes intelligent "grace period" configurations (e.g., Immediate, 30s, 1m) to prevent annoying lockouts while multitasking or swiping between apps.
+
+### Comprehensive Export Suite & Receipt Management
+- **Universal Export**: One-tap generation of beautifully formatted **PDF Reports**, actionable **CSV Spreadsheets**, and developer-friendly **JSON payloads**. Export your entire financial footprint at a moment's notice.
+- **Receipt Capture**: Directly snap photos of receipts via the device Camera or select them from your Media Library. WalletWarp securely stores these images locally and attaches them natively to transactions for painless auditing.
 
 ### Native-Feeling Interactions
 - **Swipe-to-delete** transactions with spring physics and confirmation
-- **Custom numpad** for amount entry (no keyboard covering the form)
-- **Haptic feedback** on every meaningful action
-- **Pull-to-refresh** on the home screen
-- **Animated ring progress** on karma and goals
+- **Custom numpad** for amount entry (no system keyboard covering the form)
+- **Haptic feedback** on every meaningful action across the entire interface
+- **Pull-to-refresh** on the home screen and animated ring progress bars
+- **Seamless Dark/Light Mode** rendering using a centralized theme system
 
 ---
 
@@ -38,57 +46,48 @@ Firebase integration that allows users to seamlessly back up their app state to 
 
 | Screen | Key Features |
 |---|---|
-| **Onboarding** | 3-slide intro, name + currency + budget setup, skip option |
-| **Home** | Balance hero card, animated Karma ring, savings rate, weekly bar chart, recent transactions |
-| **Transactions** | Date-grouped list, summary strip, search, type + date range filters, swipe-to-delete |
-| **Add/Edit** | Custom numpad, 19 categories, 7-day date picker, note field, income/expense toggle |
-| **Goals** | Savings goals, no-spend challenge, budget limit; add modal, contribute modal, progress rings |
-| **Insights** | Smart cards, monthly grid, week comparison bars, donut chart by category, 6-month trend |
-| **Settings** | Profile edit, currency (6 options), dark/light mode toggle, data management |
+| **Onboarding** | 3-slide intro, profile, currency selection, and budget baseline setup. |
+| **Home** | Balance hero card, animated Karma ring, savings rate, weekly bar chart, recent transactions. |
+| **Transactions** | Date-grouped list, summary strip, advanced search, type + date range filters, swipe-to-delete. |
+| **Add/Edit** | Custom numpad, 19 categories, **Camera/Gallery receipt attachment**, 7-day date picker, notes. |
+| **Recurring** | Auto-logging engine for daily, weekly, monthly, yearly rules. Active/paused management and monthly impact summaries. |
+| **Goals** | Savings goals, no-spend challenges, budget limits; add modal, contribute modal, visual progress rings. |
+| **Insights** | Smart insight cards, monthly grid, week comparison bars, donut chart by category, 6-month historical trend. |
+| **Settings** | Security & passcodes, biometrics toggle, data export (PDF/CSV/JSON), clear data, E2EE vault access, theme toggle. |
+| **Backup** | Firebase vault access management, encryption password handling, and one-tap restore/backup actions. |
 
 ---
 
 ## 🏗️ Architecture
 
-```
+```text
 flo-finance/
 ├── App.tsx                          # Root: GestureHandler + NavigationContainer
 ├── src/
-│   ├── types/index.ts               # All TypeScript interfaces
-│   ├── constants/
-│   │   ├── colors.ts                # Full dark + light color system
-│   │   ├── typography.ts            # Font scale + text style presets
-│   │   ├── spacing.ts               # 4-pt spacing grid + radii + shadows
-│   │   └── categories.ts            # 19 categories with icons + colors
+│   ├── types/index.ts               # Core TypeScript interfaces definitions
+│   ├── constants/                   # Design Tokens (Colors, Typography, Spacing)
 │   ├── store/
-│   │   ├── useAppStore.ts           # Settings, theme, onboarding (Zustand)
-│   │   ├── useTransactionStore.ts   # Full CRUD + filter engine (Zustand)
-│   │   └── useGoalStore.ts          # Goals CRUD + progress (Zustand)
+│   │   ├── useAppStore.ts           # Settings, theme, PIN security (Zustand)
+│   │   ├── useTransactionStore.ts   # Core CRUD + filtering engine (Zustand)
+│   │   ├── useGoalStore.ts          # Financial goals + tracking (Zustand)
+│   │   └── useRecurringStore.ts     # Engine for evaluating recurring rules (Zustand)
 │   ├── utils/
-│   │   ├── storage.ts               # Typed AsyncStorage wrapper
-│   │   ├── formatters.ts            # Currency (compact + full), date helpers
-│   │   ├── calculations.ts          # Aggregations, streaks, grouping
-│   │   └── insights.ts              # Smart insight generation
-│   ├── hooks/
-│   │   ├── useTheme.ts              # Typed color scheme for current mode
-│   │   └── useKarma.ts              # Computes KarmaData from all stores
-│   ├── navigation/
-│   │   ├── RootNavigator.tsx        # Stack: Onboarding → Tabs → AddTransaction
-│   │   └── TabNavigator.tsx         # Custom bottom tab bar with haptics
-│   ├── components/
-│   │   ├── common/                  # Button, Card, Input, Badge, EmptyState, SectionHeader
-│   │   ├── charts/                  # BarChart, DonutChart, RingProgress (custom SVG)
-│   │   ├── home/                    # BalanceCard, KarmaRing, QuickStats
-│   │   ├── transactions/            # TransactionItem (swipe), CategoryPicker, FilterBar
-│   │   └── goals/                   # GoalCard with progress ring
+│   │   ├── storage.ts               # Typed AsyncStorage wrappers
+│   │   ├── encryption.ts            # Local AES-256 routines
+│   │   ├── export.ts                # PDF, CSV, and JSON generation pipelines
+│   │   ├── imageHelpers.ts          # FileSystem handling for Receipt images
+│   │   ├── passcode.ts              # Keychain/Passcode security mechanisms
+│   │   └── recurring.ts             # Smart auto-generation business logic
+│   ├── hooks/                       # useTheme, useKarma, etc.
+│   ├── navigation/                  # Complex Root Stack + Tab combinations
+│   ├── components/                  # Extensive library of modular, abstracted UI elements
 │   └── screens/
-│       ├── OnboardingScreen.tsx
 │       ├── HomeScreen.tsx
 │       ├── TransactionsScreen.tsx
 │       ├── AddTransactionScreen.tsx
-│       ├── GoalsScreen.tsx
-│       ├── InsightsScreen.tsx
-│       └── SettingsScreen.tsx
+│       ├── RecurringScreen.tsx
+│       ├── BackupScreen.tsx
+│       └── ...
 ```
 
 ---
@@ -97,18 +96,15 @@ flo-finance/
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | React Native + Expo SDK 51 | Cross-platform, fast demo, no native build needed |
-| State | Zustand | Zero boilerplate, built-in selectors, TypeScript-first |
-| Persistence | AsyncStorage | Simple key-value; typed wrapper for safety |
-| Cloud Sync | Firebase Firestore + Auth | Passwordless email linking with secure storage |
-| Security | expo-secure-store + crypto-js | Fallback-capable Keystores + AES-256 End-to-End Encryption |
-| Navigation | React Navigation v6 | Industry standard, native animations |
-| Charts | Custom SVG (react-native-svg) | Full design control, no heavy chart library deps |
-| Animations | Animated API + Reanimated 2 | Ring progress + swipe gestures |
-| Gestures | PanResponder + gesture-handler | Swipe-to-delete |
-| Haptics | expo-haptics | Tactile feedback on every meaningful action |
-| Dates | date-fns | Lightweight, tree-shakeable, excellent TypeScript types |
-| Language | TypeScript (strict mode) | End-to-end type safety |
+| **Framework** | React Native + Expo SDK 54 | Cross-platform, fast iteration, modern native integration APIs |
+| **State** | Zustand | Zero boilerplate, built-in selectors, TypeScript-first state architecture |
+| **Persistence** | AsyncStorage | Reliable offline-first capability; typed JSON-stringified caching |
+| **Cloud Sync** | Firebase Auth + Firestore | Secure identity linking allowing true cross-device data continuity |
+| **Security** | `expo-secure-store` + `crypto-js` | Fallback-capable Keystores + Local AES-256 End-to-End Encryption |
+| **Native APIs** | `expo-local-authentication`, `expo-image-picker` | Direct access to FaceID, TouchID, Camera arrays, and Photo Albums |
+| **Export/Print**| `expo-print`, `expo-sharing` | For flawless, native-rendered PDF invoice generations |
+| **Navigation** | React Navigation v7 | Industry standard, deeply configurable stack and tab navigation |
+| **UI/UX** | Custom SVG (`react-native-svg`) + Haptics | Pixel-perfect customized charts with physical app responsiveness |
 
 ---
 
@@ -116,95 +112,56 @@ flo-finance/
 
 ### Prerequisites
 - Node.js 18+
-- `npm install -g expo-cli` (or use `npx expo`)
-- iOS Simulator / Android Emulator **or** Expo Go on your phone
+- `npm install -g expo-cli` (or simply use `npx expo`)
+- iOS Simulator / Android Emulator **or** Expo Go on a physical device
 
 ### Quick Start
 
 ```bash
-# Install dependencies
+# Install all required dependencies
 npm install
 
-# Start Expo development server
+# Start the Expo development server
 npm start
 
-# Then press:
-# i  →  iOS Simulator
-# a  →  Android Emulator
-# Scan QR code with Expo Go app on your phone
+# Execution Options:
+# Press `i` to launch in iOS Simulator
+# Press `a` to launch in Android Emulator
+# Scan the Terminal QR code with Expo Go to run on a physical device
 ```
 
-### Running on a Physical Device
-1. Install **Expo Go** from App Store (iOS) or Play Store (Android)
-2. Run `npm start`
-3. Scan the QR code shown in the terminal
-
 ---
 
-## 📋 Feature Coverage
+## 📋 Feature Coverage Matrix
 
-### Required Features
-
-| Requirement | Status | Notes |
+### Core Objectives
+| Goal / Requirement | Status | Implementation Details |
 |---|---|---|
-| Home dashboard with balance | ✅ | Monthly income, expense, net balance |
-| Visual element | ✅ | Bar chart (weekly), donut chart (by category), ring progress |
-| Savings progress | ✅ | Savings rate % + bar on home screen |
-| Add transaction | ✅ | Custom numpad, 19 categories, 7-day date picker |
-| View transaction history | ✅ | Grouped by date with day totals |
-| Edit transaction | ✅ | Tap any item → pre-filled form |
-| Delete transaction | ✅ | Swipe gesture + confirmation |
-| Filter / search | ✅ | Type, date range (week/month/3mo/all), text search |
-| Goal feature | ✅ | 3 types: savings goal, no-spend challenge, budget limit |
-| Insights screen | ✅ | 6 chart/stat sections + smart insight cards |
-| Empty states | ✅ | Every list and screen has a tailored empty state |
-| Local data storage | ✅ | AsyncStorage, hydrated on launch |
-| State management | ✅ | Zustand with 3 stores, TypeScript strict |
-| Code structure | ✅ | Feature folders, pure utils, hooks, reusable components |
+| Dashboard Hub | ✅ | Live net balance counting, month over month insights, and latest expenditures |
+| Data Visualizations | ✅ | High-quality bar charts (weekly), donut charts (categorical), SVG progress rings |
+| Advanced Transactions | ✅ | Complete CRUD, custom numpad, custom 7-day picker, search engines |
+| Image & Receipt Capture | ✅ | Direct integrations with device internal cameras and media storage |
+| Goal tracking capability | ✅ | Tracks savings goals, tracks "No-Spend" streaks, calculates adherence |
+| State Management | ✅ | Masterfully architected using robust Zustand modules and strict TS implementations |
+| Data Persistence | ✅ | Fully offline mode default architecture via local persistence layers |
 
-### Optional Enhancements
-
-| Enhancement | Status |
-|---|---|
-| Dark mode | ✅ Full dark + light theme, toggleable, respects system |
-| Animated transitions | ✅ Ring animation, swipe physics, fade navigation |
-| Offline-first | ✅ 100% local, zero network required |
-| Cloud Sync | ✅ Firebase Firestore with AES-256 state encryption |
-| Data export | ✅ JSON export in settings |
-| Profile / settings | ✅ Name, currency, budget all editable |
-| Biometric lock | ✅ Optional passcode/FaceID/TouchID via local-auth |
-| Multi-currency | ✅ INR, USD, EUR, GBP, JPY, AED |
+### Pro / Premium Specifics
+| Pro Enhancement | Status | Implementation Details |
+|---|---|---|
+| Cloud Synchronization | ✅ | Password-protected vaults via Firebase using native localized encryption layers |
+| Data Export Engine | ✅ | Multi-layer exports directly out to system share sheets (PDF, CSV, JSON forms) |
+| App Security Protocol | ✅ | Passcode generation UI mapped to hardware biometric layers. Allows grace periods! |
+| Recurring Auto-Generators | ✅ | Sets up 'Smart Rules' that will compute missed transactions upon launch. |
+| Premium UX / UI Themes | ✅ | Absolute fluid animations. Context-aware dark/light modes. Granular haptic feedback. |
+| Multi-Currency Support | ✅ | Switch localized currencies dynamically seamlessly. |
 
 ---
 
-## 🔧 Assumptions & Decisions
+## 🔧 Engineering Decisions
 
-**Custom numpad over system keyboard** — The system keyboard covers ~40% of the screen on most phones, hiding context. The custom numpad keeps the full form visible while providing a satisfying, large-number typing experience.
-
-**Zustand over Redux** — For this scope, Redux adds ~300 lines of boilerplate with identical outcomes. Zustand delivers cleaner, more readable stores that are easier to evaluate.
-
-**Custom SVG charts** — Chart libraries built for web have inconsistent performance on React Native's SVG renderer. Hand-crafted charts are lighter, faster, and pixel-perfectly aligned to the design system.
-
-**Text input for goal deadline** — Used YYYY-MM-DD text input rather than a native DateTimePicker to avoid platform-specific styling differences. A DateTimePicker could be dropped in trivially.
-
-**Karma score does not reset between months** — It's a rolling health indicator based on current habits, not a monthly report card. This feels more motivating.
-
-**Currency number formatting** — Uses `en-IN` locale when INR is selected (₹1,00,000 style), otherwise `en-US`. Compact format (K/L/Cr) used in small spaces.
-
----
-
-## 📊 Evaluation Criteria Map
-
-| Criterion | Where to look |
-|---|---|
-| Product Thinking | Karma Score concept, insight engine logic, onboarding UX flow |
-| Mobile UI/UX | Custom tab bar, swipe-to-delete, haptics, dark mode, all empty states |
-| Creativity | Karma Score + level progression is novel for finance apps |
-| Functionality | Full CRUD transactions, goal contribution flow, filter + search |
-| Code Quality | Strict TypeScript, pure utility functions, consistent naming, no `any` |
-| State & Data Handling | Zustand 3-store architecture, AsyncStorage hydration pattern |
-| Responsiveness | SafeAreaView everywhere, KeyboardAvoidingView on forms |
-| Documentation | This README + assumptions documented above |
+- **Local End-to-End Encryption Paradigm**: We firmly opted not to send plaintext transactions to the database. All user data is locally converted to unreadable AES-256 blocks before internet transmission to guarantee privacy.
+- **Background Context Engine for Recurring Rules**: Since this is purely a standalone mobile client—with no centralized Node server running cron jobs—the recurring engine fires asynchronously on app mount. It computes logical intervals and diffs between `lastProcessed` and `today` offsets to inject required transactions retroactively.
+- **Custom Numpad Control**: Native keyboards consume up to 45% of available screen real estate which interrupts the UX flow of an add transaction. The custom flexbox numpad provides satisfyingly large hit areas while retaining total screen contextual visibility.
 
 ---
 

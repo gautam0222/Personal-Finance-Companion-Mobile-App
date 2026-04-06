@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "WalletWarp",
-    "slug": "wallet-warp",
+    "slug": "flo-finance",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.walletwarp.app",
+      "versionCode": 1,
       "permissions": [
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
@@ -44,6 +45,9 @@
       "eas": {
         "projectId": "c10fbeef-8925-4f81-85aa-8237db2c1ee6"
       }
+    },
+    "cli": {
+      "appVersionSource": "local"
     }
   }
 }
