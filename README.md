@@ -1,4 +1,4 @@
-# ✦ Flo Finance — Personal Finance Companion
+# ✦ WalletWarp — Personal Finance Companion
 
 > *Money, flowing your way.*
 
@@ -209,6 +209,6 @@ npm start
 ---
 
 <div align="center">
-  <strong>✦ Flo Finance</strong><br/>
+  <strong>✦ WalletWarp</strong><br/>
   Track it. Understand it. Improve it.
 </div>

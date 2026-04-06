@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Flo Finance",
-    "slug": "flo-finance",
+    "name": "WalletWarp",
+    "slug": "wallet-warp",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -13,13 +13,18 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.flo.finance",
+      "bundleIdentifier": "com.walletwarp.app",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Use Face ID to unlock Flo Finance"
+        "NSFaceIDUsageDescription": "Use Face ID to unlock WalletWarp"
       }
     },
     "android": {
-      "package": "com.flo.finance",
+      "package": "com.walletwarp.app",
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "CAMERA"
+      ],
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -32,7 +37,13 @@
     "plugins": [
       "expo-font",
       "expo-notifications",
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      "expo-local-authentication"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c10fbeef-8925-4f81-85aa-8237db2c1ee6"
+      }
+    }
   }
 }

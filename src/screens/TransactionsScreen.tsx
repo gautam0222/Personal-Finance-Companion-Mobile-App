@@ -12,6 +12,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme }            from '../hooks/useTheme';
 import { useTransactionStore } from '../store/useTransactionStore';
 import { useAppStore }         from '../store/useAppStore';
+import { useRecurringStore }   from '../store/useRecurringStore';
 import { TransactionItem }     from '../components/transactions/TransactionItem';
 import { FilterBar }           from '../components/transactions/FilterBar';
 import { EmptyState }          from '../components/common/EmptyState';
@@ -29,6 +30,7 @@ export const TransactionsScreen: React.FC = () => {
   const navigation                                                = useNavigation<NavProp>();
   const { transactions, getFiltered, filter, setFilter, resetFilter } = useTransactionStore();
   const settings                                                  = useAppStore((s) => s.settings);
+  const { rules, lastAutoCreatedCount, clearAutoCreatedCount }    = useRecurringStore();
   const [searchFocused, setSearchFocused]                         = useState(false);
   const sym = settings.currencySymbol;
 
@@ -56,14 +58,41 @@ export const TransactionsScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Transactions</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('AddTransaction')}
-            activeOpacity={0.8}
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-          >
-            <Ionicons name="add" size={22} color="#FFF" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: Spacing[2] }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Recurring')}
+              activeOpacity={0.8}
+              style={[styles.addBtn, { backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border }]}
+            >
+              <Ionicons name="repeat-outline" size={20} color={colors.textSecondary} />
+              {rules.length > 0 && (
+                <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: colors.primary, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.background }}>
+                  <Text style={{ fontSize: 9, color: '#FFF', fontWeight: 'bold' }}>{rules.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('AddTransaction')}
+              activeOpacity={0.8}
+              style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            >
+              <Ionicons name="add" size={22} color="#FFF" />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Banner */}
+        {lastAutoCreatedCount > 0 && (
+          <View style={{ marginHorizontal: Spacing[4], marginBottom: Spacing[3], backgroundColor: colors.primaryMuted, padding: Spacing[3], borderRadius: Radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing[2] }}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={colors.primaryLight} />
+              <Text style={{ color: colors.primaryLight, fontSize: FontSize.sm }}>{lastAutoCreatedCount} recurring transaction{lastAutoCreatedCount !== 1 ? 's' : ''} auto-added.</Text>
+            </View>
+            <TouchableOpacity onPress={clearAutoCreatedCount} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Ionicons name="close" size={16} color={colors.primaryLight} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Summary strip — only when there is data */}
         {transactions.length > 0 && (

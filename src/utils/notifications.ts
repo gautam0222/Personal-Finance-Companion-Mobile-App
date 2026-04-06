@@ -91,7 +91,7 @@ export async function scheduleDailyReminderAsync(
   await Notifications.cancelAllScheduledNotificationsAsync();
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'Check in with Flo Finance',
+      title: 'Check in with WalletWarp',
       body: "Log today's income or spending to keep your finances and Karma Score on track.",
       sound: false,
     },

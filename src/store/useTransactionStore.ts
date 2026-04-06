@@ -77,6 +77,7 @@ interface TransactionStore {
   addTransaction: (
     data: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>,
   ) => Promise<Transaction>;
+  bulkAddTransactions: (newTransactions: Transaction[]) => Promise<void>;
   updateTransaction: (
     id: string,
     data: Partial<Omit<Transaction, 'id' | 'createdAt'>>,
@@ -127,6 +128,13 @@ export const useTransactionStore = create<TransactionStore>((set, get) => ({
     set({ transactions: next });
     await Storage.set(Storage.KEYS.TRANSACTIONS, next);
     return transaction;
+  },
+
+  bulkAddTransactions: async (newTransactions) => {
+    const combined = [...newTransactions, ...get().transactions];
+    combined.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+    set({ transactions: combined });
+    await Storage.set(Storage.KEYS.TRANSACTIONS, combined);
   },
 
   updateTransaction: async (id, data) => {

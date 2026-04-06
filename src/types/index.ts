@@ -1,3 +1,22 @@
+// Recurring types
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface RecurringTransaction {
+  id: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  frequency: RecurrenceFrequency;
+  startDate: string;
+  endDate?: string;
+  nextDueDate: string;
+  lastExecutedDate?: string;
+  isActive: boolean;
+  totalExecuted: number;
+  note: string;
+  createdAt: string;
+}
+
 // Transaction
 export interface Transaction {
   id: string;
@@ -7,6 +26,8 @@ export interface Transaction {
   date: string;        // ISO date string (YYYY-MM-DD)
   note: string;
   receiptUri?: string; // Local file URI to the image
+  isRecurring?: boolean;
+  recurringId?: string;
   createdAt: string;   // ISO datetime
   updatedAt: string;
 }
@@ -114,6 +135,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   MainTabs: undefined;
   AddTransaction: { transactionId?: string } | undefined;
+  Recurring: undefined;
   Backup: undefined;
 };
 

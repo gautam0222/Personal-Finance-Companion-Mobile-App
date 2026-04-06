@@ -10,6 +10,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAppStore }          from '../store/useAppStore';
 import { useTransactionStore }  from '../store/useTransactionStore';
 import { useGoalStore }         from '../store/useGoalStore';
+import { useRecurringStore }    from '../store/useRecurringStore';
 
 import { OnboardingScreen }     from '../screens/OnboardingScreen';
 import { AddTransactionScreen } from '../screens/AddTransactionScreen';
@@ -33,10 +34,13 @@ const HydrationSplash: React.FC = () => (
 // ─── Root navigator ───────────────────────────────────────────────────────────
 export const RootNavigator: React.FC = () => {
   const { settings, isLoading, isHydrated, hydrate } = useAppStore();
-  const hydrateTransactions = useTransactionStore((s) => s.hydrate);
-  const hydrateGoals        = useGoalStore((s) => s.hydrate);
+  const hydrateTransactions   = useTransactionStore((s) => s.hydrate);
+  const bulkAddTransactions   = useTransactionStore((s) => s.bulkAddTransactions);
+  const hydrateGoals          = useGoalStore((s) => s.hydrate);
+  const hydrateRecurring      = useRecurringStore((s) => s.hydrate);
+  const runEngine             = useRecurringStore((s) => s.runEngine);
 
-  // Hydrate all three stores in parallel on first mount.
+  // Hydrate all stores in parallel on first mount.
   // This is the ONLY place hydration is called — App.tsx just observes
   // isHydrated to know when to hide the native splash screen.
   useEffect(() => {
@@ -44,7 +48,10 @@ export const RootNavigator: React.FC = () => {
       hydrate(),
       hydrateTransactions(),
       hydrateGoals(),
-    ]).catch((err) => {
+      hydrateRecurring(),
+    ]).then(() => {
+      runEngine(bulkAddTransactions).catch(err => console.warn('Recurring engine run failed:', err));
+    }).catch((err) => {
       console.warn('[RootNavigator] hydration error:', err);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

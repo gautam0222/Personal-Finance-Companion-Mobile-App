@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const KEYS = {
   APP_SETTINGS: '@flo:app_settings',
   TRANSACTIONS: '@flo:transactions',
+  RECURRING_TRANSACTIONS: '@flo:recurring',
   GOALS: '@flo:goals',
   KARMA: '@flo:karma',
   LAST_LOG_DATE: '@flo:last_log_date',

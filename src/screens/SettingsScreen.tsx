@@ -778,7 +778,7 @@ export const SettingsScreen: React.FC = () => {
 
         <Text style={[styles.groupLabel, { color: colors.textTertiary }]}>About</Text>
         <Group>
-          <Row icon="information-circle-outline" label="Flo Finance" value="v1.0.0" iconColor={colors.primaryLight} />
+          <Row icon="information-circle-outline" label="WalletWarp" value="v1.0.0" iconColor={colors.primaryLight} />
           <Row icon="lock-closed-outline" label="Privacy" value="100% local data" iconColor={colors.incomeText} />
           <Row icon="heart-outline" label="Competition Edition" value="Built with care" iconColor="#F43F5E" last />
         </Group>

@@ -63,7 +63,7 @@ export async function getBiometricSupportAsync(): Promise<BiometricSupportResult
 }
 
 export async function authenticateForUnlockAsync(
-  promptMessage: string = 'Unlock Flo Finance',
+  promptMessage: string = 'Unlock WalletWarp',
 ): Promise<boolean> {
   const support = await getBiometricSupportAsync();
   if (!support.supported) {
