@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ScrollView, TouchableOpacity, Text } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../utils/haptics';
 import { useTheme } from '../../hooks/useTheme';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { TransactionFilter, DateRangeFilter } from '../../types';

@@ -69,6 +69,7 @@ export interface AppSettings {
   currencySymbol: string;
   hasOnboarded: boolean;
   theme: ThemeMode;
+  hapticsEnabled: boolean;
   monthlyBudget: number;
   appLockEnabled: boolean;
   biometricLockEnabled: boolean;

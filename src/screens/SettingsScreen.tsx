@@ -3,6 +3,7 @@ import {
   ActionSheetIOS,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -15,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -468,6 +469,29 @@ export const SettingsScreen: React.FC = () => {
     ]);
   };
 
+  const handleFeedbackPress = async () => {
+    const emailUrl =
+      'mailto:sukhanigautam2@gmail.com?subject=Flo%20Finance%20Feedback';
+
+    try {
+      const supported = await Linking.canOpenURL(emailUrl);
+      if (!supported) {
+        Alert.alert(
+          'Email unavailable',
+          'No email app is available on this device right now.',
+        );
+        return;
+      }
+
+      await Linking.openURL(emailUrl);
+    } catch {
+      Alert.alert(
+        'Could not open email',
+        'Please email sukhanigautam2@gmail.com manually.',
+      );
+    }
+  };
+
   // ─── Passcode finalization helpers ───────────────────────────────────────────
 
   const completePasscodeSetup = async (code: string) => {
@@ -821,7 +845,6 @@ export const SettingsScreen: React.FC = () => {
             icon="sunny-outline"
             iconColor="#F59E0B"
             label="Light Mode"
-            last
             rightElement={
               <Switch
                 value={settings.theme === 'light'}
@@ -831,6 +854,19 @@ export const SettingsScreen: React.FC = () => {
                 }}
                 trackColor={{ false: colors.border, true: `${colors.primary}99` }}
                 thumbColor={settings.theme === 'light' ? colors.primary : colors.textTertiary}
+              />
+            }
+          />
+          <Row
+            icon="phone-portrait-outline"
+            label="Vibration"
+            last
+            rightElement={
+              <Switch
+                value={settings.hapticsEnabled}
+                onValueChange={(val) => void updateSettings({ hapticsEnabled: val })}
+                trackColor={{ false: colors.border, true: `${colors.primary}99` }}
+                thumbColor={settings.hapticsEnabled ? colors.primary : colors.textTertiary}
               />
             }
           />
@@ -948,6 +984,7 @@ export const SettingsScreen: React.FC = () => {
         <Group>
           <Row icon="information-circle-outline" label="WalletWarp" value="v1.0.0" iconColor={colors.primaryLight} />
           <Row icon="lock-closed-outline" label="Privacy" value="100% local data" iconColor={colors.incomeText} />
+          <Row icon="mail-outline" label="Send Feedback / Issue" value="Email" onPress={() => void handleFeedbackPress()} />
           <Row icon="heart-outline" label="Competition Edition" value="Built with care" iconColor="#F43F5E" last />
         </Group>
 

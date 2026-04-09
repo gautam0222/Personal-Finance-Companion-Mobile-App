@@ -4,7 +4,7 @@ import {
   ScrollView, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../utils/haptics';
 import { useTheme } from '../../hooks/useTheme';
 import { getCategoriesForType } from '../../constants/categories';
 import { Radius, Spacing } from '../../constants/spacing';

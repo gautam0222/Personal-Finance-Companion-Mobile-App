@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import { format, addMonths } from 'date-fns';
 
 import { useTheme }    from '../hooks/useTheme';

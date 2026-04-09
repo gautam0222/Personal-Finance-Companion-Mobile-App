@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../utils/haptics';
 import { RingProgress } from '../charts/RingProgress';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../store/useAppStore';

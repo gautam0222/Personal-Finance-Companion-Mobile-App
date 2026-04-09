@@ -3,7 +3,7 @@ import {
   TouchableOpacity, Text, ActivityIndicator,
   View, ViewStyle, TextStyle,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../utils/haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../hooks/useTheme';
 import { Radius, Spacing } from '../../constants/spacing';

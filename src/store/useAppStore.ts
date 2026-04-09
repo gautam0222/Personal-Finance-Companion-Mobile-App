@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   currencySymbol: '₹',
   hasOnboarded: false,
   theme: 'dark',
+  hapticsEnabled: true,
   monthlyBudget: 0,
   appLockEnabled: false,
   biometricLockEnabled: false,

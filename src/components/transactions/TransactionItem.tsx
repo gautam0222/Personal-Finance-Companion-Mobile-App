@@ -4,7 +4,7 @@ import {
   Animated, PanResponder, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../../utils/haptics';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppStore } from '../../store/useAppStore';
 import { useTransactionStore } from '../../store/useTransactionStore';
