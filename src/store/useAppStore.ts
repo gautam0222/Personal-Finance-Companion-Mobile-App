@@ -20,6 +20,7 @@ interface AppStore {
 
 const DEFAULT_SETTINGS: AppSettings = {
   userName: '',
+  avatarUri: undefined,
   currency: 'INR',
   currencySymbol: '₹',
   hasOnboarded: false,

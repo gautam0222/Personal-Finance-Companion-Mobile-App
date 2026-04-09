@@ -41,6 +41,13 @@
       "expo-secure-store",
       "expo-local-authentication",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow WalletWarp to access your photos to set a profile picture and attach receipts.",
+          "cameraPermission": "Allow WalletWarp to use your camera to take profile photos and receipt images."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FFFFFF",

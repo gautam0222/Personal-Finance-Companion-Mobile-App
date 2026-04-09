@@ -64,6 +64,7 @@ export interface CurrencyOption {
 
 export interface AppSettings {
   userName: string;
+  avatarUri?: string;
   currency: Currency;
   currencySymbol: string;
   hasOnboarded: boolean;

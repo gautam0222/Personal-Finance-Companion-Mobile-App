@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -15,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -22,6 +24,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/useAppStore';
 import { useGoalStore } from '../store/useGoalStore';
 import { useTransactionStore } from '../store/useTransactionStore';
+import { Avatar } from '../components/common/Avatar';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { Input } from '../components/common/Input';
@@ -33,6 +36,7 @@ import type { RootStackParamList } from '../types';
 import { calcBalanceStats } from '../utils/calculations';
 import { exportAsJSON, exportAsCSV, exportAsPDF, ExportFormat } from '../utils/export';
 import { formatCurrency } from '../utils/formatters';
+import { deleteAvatarImage, saveAvatarImageLocally } from '../utils/imageHelpers';
 import {
   authenticateForUnlockAsync,
   getBiometricSupportAsync,
@@ -121,6 +125,138 @@ const Group: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </Card>
 );
 
+async function pickAvatarFromLibrary(): Promise<string | null> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert(
+      'Permission needed',
+      'Please allow photo access to choose a profile picture.',
+    );
+    return null;
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8,
+  });
+
+  if (result.canceled || !result.assets[0]) return null;
+  return saveAvatarImageLocally(result.assets[0].uri);
+}
+
+async function pickAvatarFromCamera(): Promise<string | null> {
+  const { status } = await ImagePicker.requestCameraPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert(
+      'Permission needed',
+      'Please allow camera access to take a profile picture.',
+    );
+    return null;
+  }
+
+  const result = await ImagePicker.launchCameraAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8,
+  });
+
+  if (result.canceled || !result.assets[0]) return null;
+  return saveAvatarImageLocally(result.assets[0].uri);
+}
+
+interface AvatarPickerProps {
+  currentUri?: string | null;
+  name: string;
+  onPick: (uri: string | null) => void;
+  size?: number;
+}
+
+const AvatarPicker: React.FC<AvatarPickerProps> = ({
+  currentUri,
+  name,
+  onPick,
+  size = 96,
+}) => {
+  const { colors } = useTheme();
+
+  const showOptions = useCallback(() => {
+    const hasPhoto = Boolean(currentUri);
+    const options = hasPhoto
+      ? ['Take Photo', 'Choose from Library', 'Remove Photo', 'Cancel']
+      : ['Take Photo', 'Choose from Library', 'Cancel'];
+
+    const handleSelect = async (index: number) => {
+      if (index === 0) {
+        const uri = await pickAvatarFromCamera();
+        if (uri) onPick(uri);
+        return;
+      }
+
+      if (index === 1) {
+        const uri = await pickAvatarFromLibrary();
+        if (uri) onPick(uri);
+        return;
+      }
+
+      if (hasPhoto && index === 2) {
+        onPick(null);
+      }
+    };
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: hasPhoto ? 3 : 2,
+          destructiveButtonIndex: hasPhoto ? 2 : undefined,
+          title: 'Profile Photo',
+        },
+        (index) => {
+          void handleSelect(index);
+        },
+      );
+      return;
+    }
+
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+      { text: 'Take Photo', onPress: () => void handleSelect(0) },
+      { text: 'Choose from Library', onPress: () => void handleSelect(1) },
+    ];
+
+    if (hasPhoto) {
+      buttons.push({
+        text: 'Remove Photo',
+        style: 'destructive',
+        onPress: () => onPick(null),
+      });
+    }
+
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Profile Photo', 'Choose an option', buttons);
+  }, [currentUri, onPick]);
+
+  return (
+    <TouchableOpacity
+      onPress={showOptions}
+      activeOpacity={0.85}
+      style={styles.avatarPickerWrap}
+    >
+      <Avatar uri={currentUri} name={name} size={size} ring />
+      <View
+        style={[
+          styles.cameraBadge,
+          { backgroundColor: colors.primary, borderColor: colors.background },
+        ]}
+      >
+        <Ionicons name="camera" size={12} color="#FFFFFF" />
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 export const SettingsScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation<NavProp>();
@@ -130,6 +266,7 @@ export const SettingsScreen: React.FC = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [editName, setEditName] = useState(settings.userName);
+  const [editAvatarUri, setEditAvatarUri] = useState<string | null>(settings.avatarUri ?? null);
   const [editBudget, setEditBudget] = useState(
     settings.monthlyBudget > 0 ? String(settings.monthlyBudget) : '',
   );
@@ -202,14 +339,33 @@ export const SettingsScreen: React.FC = () => {
     setShowSecurityModal(true);
   };
 
-  const openModal = () => {
+  const openModal = useCallback(() => {
     setEditName(settings.userName);
+    setEditAvatarUri(settings.avatarUri ?? null);
     setEditBudget(settings.monthlyBudget > 0 ? String(settings.monthlyBudget) : '');
     setEditCurrency(
       CURRENCY_OPTIONS.find((c) => c.code === settings.currency) ?? CURRENCY_OPTIONS[0],
     );
     setNameError('');
     setShowModal(true);
+  }, [settings]);
+
+  const handleAvatarPick = async (nextUri: string | null) => {
+    if (
+      editAvatarUri &&
+      editAvatarUri !== settings.avatarUri &&
+      editAvatarUri !== nextUri
+    ) {
+      await deleteAvatarImage(editAvatarUri);
+    }
+    setEditAvatarUri(nextUri);
+  };
+
+  const closeProfileModal = async () => {
+    if (editAvatarUri && editAvatarUri !== settings.avatarUri) {
+      await deleteAvatarImage(editAvatarUri);
+    }
+    setShowModal(false);
   };
 
   const handleSave = async () => {
@@ -220,12 +376,18 @@ export const SettingsScreen: React.FC = () => {
 
     setSavingProfile(true);
     try {
+      const previousAvatarUri = settings.avatarUri;
+      const nextAvatarUri = editAvatarUri ?? undefined;
       await updateSettings({
         userName: editName.trim(),
+        avatarUri: nextAvatarUri,
         monthlyBudget: parseFloat(editBudget) || 0,
         currency: editCurrency.code,
         currencySymbol: editCurrency.symbol,
       });
+      if (previousAvatarUri && previousAvatarUri !== nextAvatarUri) {
+        await deleteAvatarImage(previousAvatarUri);
+      }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowModal(false);
     } finally {
@@ -392,7 +554,7 @@ export const SettingsScreen: React.FC = () => {
 
         case 'verifyCurrent': {
           setBusyAction('security');
-          setPasscodeStatus('Checking passcode…');
+          setPasscodeStatus('Checking passcode...');
           const matches = await verifyAppPasscodeAsync(passcodeValue);
           setBusyAction(null);
           if (!matches) {
@@ -590,36 +752,43 @@ export const SettingsScreen: React.FC = () => {
       </SafeAreaView>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <TouchableOpacity
-          onPress={openModal}
-          activeOpacity={0.85}
+        <View
           style={[
             styles.profileCard,
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
-          <View style={[styles.avatar, { backgroundColor: colors.primaryMuted }]}>
-            <Text style={[styles.avatarInitial, { color: colors.primaryLight }]}>
-              {settings.userName ? settings.userName.charAt(0).toUpperCase() : '?'}
-            </Text>
-          </View>
+          <Avatar
+            uri={settings.avatarUri}
+            name={settings.userName}
+            size={60}
+            ring
+          />
 
-          <View style={{ flex: 1 }}>
+          <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: colors.text }]}>
               {settings.userName || 'Set your name'}
             </Text>
             <Text style={[styles.profileSub, { color: colors.textTertiary }]}>
-              {settings.currency} /{' '}
-              {settings.monthlyBudget > 0
-                ? `${sym}${settings.monthlyBudget.toLocaleString()} budget`
-                : 'No budget set'}
+              Personal profile
             </Text>
           </View>
 
-          <View style={[styles.editChip, { backgroundColor: colors.primaryMuted }]}>
+          <TouchableOpacity
+            onPress={openModal}
+            activeOpacity={0.82}
+            style={[
+              styles.editChip,
+              {
+                backgroundColor: colors.primaryMuted,
+                borderColor: colors.primaryMutedBorder,
+              },
+            ]}
+          >
             <Ionicons name="pencil-outline" size={14} color={colors.primaryLight} />
-          </View>
-        </TouchableOpacity>
+            <Text style={[styles.editChipText, { color: colors.primaryLight }]}>Edit</Text>
+          </TouchableOpacity>
+        </View>
 
         <Card style={{ marginBottom: Spacing[5] }} padding={Spacing[4]}>
           <Text
@@ -669,7 +838,6 @@ export const SettingsScreen: React.FC = () => {
 
         <Text style={[styles.groupLabel, { color: colors.textTertiary }]}>Preferences</Text>
         <Group>
-          <Row icon="person-outline" label="Name" value={settings.userName || 'Not set'} onPress={openModal} />
           <Row
             icon="swap-horizontal-outline"
             label="Currency"
@@ -769,7 +937,7 @@ export const SettingsScreen: React.FC = () => {
           <Row
             icon="download-outline"
             label="Export Data"
-            value={busyAction === 'export' ? 'Preparing...' : 'PDF · CSV · JSON'}
+            value={busyAction === 'export' ? 'Preparing...' : 'PDF / CSV / JSON'}
             onPress={presentExportOptions}
           />
           <Row icon="trash-outline" label="Clear All Transactions" danger onPress={handleClear} />
@@ -786,18 +954,42 @@ export const SettingsScreen: React.FC = () => {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowModal(false)}>
+      <Modal visible={showModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => void closeProfileModal()}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={[styles.modal, { backgroundColor: colors.background }]}>
             <View style={[styles.modalNav, { borderBottomColor: colors.border }]}>
-              <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <TouchableOpacity onPress={() => void closeProfileModal()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Profile</Text>
-              <View style={{ width: 22 }} />
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Details</Text>
+              <TouchableOpacity
+                onPress={() => void handleSave()}
+                disabled={savingProfile}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text
+                  style={[
+                    styles.saveShortcut,
+                    { color: savingProfile ? colors.textTertiary : colors.primary },
+                  ]}
+                >
+                  {savingProfile ? 'Saving...' : 'Save'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.avatarSection}>
+                <AvatarPicker
+                  currentUri={editAvatarUri}
+                  name={editName || settings.userName}
+                  onPick={(uri) => void handleAvatarPick(uri)}
+                />
+                <Text style={[styles.avatarHint, { color: colors.textTertiary }]}>
+                  Tap to change photo
+                </Text>
+              </View>
+
               <Input
                 label="Your name"
                 value={editName}
@@ -914,29 +1106,52 @@ const styles = StyleSheet.create({
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing[4],
+    gap: Spacing[3],
     borderRadius: Radius['2xl'],
     borderWidth: 1,
     padding: Spacing[4],
     marginBottom: Spacing[5],
   },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInitial: { fontSize: FontSize['2xl'], fontWeight: '700' },
-  profileName: { fontSize: FontSize.lg, fontWeight: '600', marginBottom: 3 },
-  profileSub: { fontSize: FontSize.xs },
+  profileInfo: { flex: 1, minWidth: 0 },
+  profileName: { fontSize: FontSize.lg, fontWeight: '700', letterSpacing: -0.2 },
+  profileSub: { fontSize: FontSize.xs, marginTop: 3 },
   editChip: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    flexShrink: 0,
+  },
+  editChipText: {
+    fontSize: FontSize.xs,
+    fontWeight: '600',
+  },
+  avatarSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing[5],
+    gap: Spacing[2],
+  },
+  avatarPickerWrap: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cameraBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+  },
+  avatarHint: { fontSize: FontSize.xs },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
   summaryItem: { alignItems: 'center' },
   summaryVal: {
@@ -990,6 +1205,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
   },
   modalTitle: { fontSize: FontSize.lg, fontWeight: '700' },
+  saveShortcut: { fontSize: FontSize.md, fontWeight: '600' },
   modalBody: { padding: Spacing[4], paddingTop: Spacing[5] },
   securityBody: {
     flex: 1,
@@ -1012,3 +1228,5 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
   },
 });
+
+
