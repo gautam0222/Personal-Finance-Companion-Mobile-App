@@ -1,16 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, TextInput, Alert, Image, ActionSheetIOS
+  ActionSheetIOS,
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { saveReceiptImageLocally, deleteReceiptImage } from '../utils/imageHelpers';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { format } from 'date-fns';
 
+import { saveReceiptImageLocally, deleteReceiptImage } from '../utils/imageHelpers';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/useAppStore';
 import { useTransactionStore } from '../store/useTransactionStore';
@@ -32,36 +40,77 @@ const KEYPAD = [
 
 export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors, isDark } = useTheme();
-  const settings             = useAppStore((s) => s.settings);
-  const { transactions, addTransaction, updateTransaction, deleteTransaction } = useTransactionStore();
+  const settings = useAppStore((s) => s.settings);
+  const {
+    transactions,
+    addTransaction,
+    updateTransaction,
+    deleteTransaction,
+  } = useTransactionStore();
 
-  const editId   = route.params?.transactionId;
+  const editId = route.params?.transactionId;
   const existing = editId ? transactions.find((t) => t.id === editId) : undefined;
-  const isEdit   = !!existing;
+  const isEdit = !!existing;
 
-  const [type,        setType]        = useState<'income' | 'expense'>(existing?.type ?? 'expense');
-  const [amount,      setAmount]      = useState(existing ? String(existing.amount) : '');
-  const [category,    setCategory]    = useState(existing?.category ?? 'food');
-  const [date,        setDate]        = useState(existing?.date ?? format(new Date(), 'yyyy-MM-dd'));
-  const [note,        setNote]        = useState(existing?.note ?? '');
-  const [receipt,     setReceipt]     = useState<string | undefined>(existing?.receiptUri);
-  const [loading,     setLoading]     = useState(false);
+  const [type, setType] = useState<'income' | 'expense'>(existing?.type ?? 'expense');
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : '');
+  const [category, setCategory] = useState(existing?.category ?? 'food');
+  const [date, setDate] = useState(existing?.date ?? format(new Date(), 'yyyy-MM-dd'));
+  const [note, setNote] = useState(existing?.note ?? '');
+  const [receipt, setReceipt] = useState<string | undefined>(existing?.receiptUri);
+  const [receiptAspectRatio, setReceiptAspectRatio] = useState(4 / 3);
+  const [loading, setLoading] = useState(false);
   const [amountError, setAmountError] = useState('');
 
   const sym = settings.currencySymbol;
 
   useEffect(() => {
-    if (!isEdit) setCategory(type === 'income' ? 'salary' : 'food');
-  }, [type]);
+    if (!isEdit) {
+      setCategory(type === 'income' ? 'salary' : 'food');
+    }
+  }, [isEdit, type]);
+
+  useEffect(() => {
+    if (!receipt) {
+      setReceiptAspectRatio(4 / 3);
+      return;
+    }
+
+    let active = true;
+    Image.getSize(
+      receipt,
+      (width, height) => {
+        if (!active || width <= 0 || height <= 0) return;
+        setReceiptAspectRatio(width / height);
+      },
+      () => {
+        if (active) setReceiptAspectRatio(4 / 3);
+      },
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [receipt]);
 
   const handleKey = async (key: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setAmountError('');
-    if (key === 'del')              { setAmount((p) => p.slice(0, -1)); return; }
+    if (key === 'del') {
+      setAmount((p) => p.slice(0, -1));
+      return;
+    }
     if (key === '.' && amount.includes('.')) return;
-    if (amount.split('.')[1]?.length >= 2)   return;
-    if (amount.length >= 10)                  return;
+    if (amount.split('.')[1]?.length >= 2) return;
+    if (amount.length >= 10) return;
     setAmount((p) => p + key);
+  };
+
+  const replaceReceipt = async (nextUri: string) => {
+    if (receipt && receipt !== existing?.receiptUri) {
+      await deleteReceiptImage(receipt);
+    }
+    setReceipt(nextUri);
   };
 
   const presentReceiptOptions = async () => {
@@ -74,13 +123,13 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
         (buttonIndex) => {
           if (buttonIndex === 1) void handleTakeReceipt();
           else if (buttonIndex === 2) void handlePickReceipt();
-        }
+        },
       );
     } else {
       Alert.alert('Attach Receipt', 'Choose an option', [
         { text: 'Take Photo', onPress: handleTakeReceipt },
         { text: 'Choose from Library', onPress: handlePickReceipt },
-        { text: 'Cancel', style: 'cancel' }
+        { text: 'Cancel', style: 'cancel' },
       ]);
     }
   };
@@ -91,16 +140,18 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
       Alert.alert('Permission Denied', 'Camera access is required to take photos.');
       return;
     }
+
     try {
-      let result = await ImagePicker.launchCameraAsync({
+      const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.7,
       });
+
       if (!result.canceled && result.assets[0]) {
         setLoading(true);
         const localUri = await saveReceiptImageLocally(result.assets[0].uri);
-        setReceipt(localUri);
+        await replaceReceipt(localUri);
       }
     } catch (err: any) {
       Alert.alert('Error', `Could not attach receipt: ${err.message || 'Unknown error'}`);
@@ -115,8 +166,9 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
       Alert.alert('Permission Denied', 'Gallery access is required to choose photos.');
       return;
     }
+
     try {
-      let result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.7,
@@ -125,7 +177,7 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
       if (!result.canceled && result.assets[0]) {
         setLoading(true);
         const localUri = await saveReceiptImageLocally(result.assets[0].uri);
-        setReceipt(localUri);
+        await replaceReceipt(localUri);
       }
     } catch (err: any) {
       Alert.alert('Error', `Could not attach receipt image: ${err.message || 'Unknown error'}`);
@@ -148,16 +200,25 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
+
     setLoading(true);
     try {
       if (isEdit && editId) {
-        await updateTransaction(editId, { amount: parsed, type, category, date, note, receiptUri: receipt });
+        await updateTransaction(editId, {
+          amount: parsed,
+          type,
+          category,
+          date,
+          note,
+          receiptUri: receipt,
+        });
         if (existing.receiptUri && existing.receiptUri !== receipt) {
-          deleteReceiptImage(existing.receiptUri);
+          await deleteReceiptImage(existing.receiptUri);
         }
       } else {
         await addTransaction({ amount: parsed, type, category, date, note, receiptUri: receipt });
       }
+
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
     } finally {
@@ -167,25 +228,21 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
 
   const handleDelete = () => {
     if (!editId) return;
-    Alert.alert(
-      'Delete Transaction',
-      'This transaction will be permanently removed.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteTransaction(editId);
-            if (existing?.receiptUri) {
-              deleteReceiptImage(existing.receiptUri);
-            }
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            navigation.goBack();
-          },
+    Alert.alert('Delete Transaction', 'This transaction will be permanently removed.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteTransaction(editId);
+          if (existing?.receiptUri) {
+            await deleteReceiptImage(existing.receiptUri);
+          }
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          navigation.goBack();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const accentColor = type === 'income' ? colors.incomeText : colors.expenseText;
@@ -195,7 +252,10 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <SafeAreaView edges={['top']}>
         <View style={styles.nav}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
           <Text style={[styles.navTitle, { color: colors.text }]}>
@@ -210,19 +270,30 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scroll}
       >
-        {/* Type Toggle */}
-        <View style={[styles.typeToggle, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.typeToggle,
+            { backgroundColor: colors.cardElevated, borderColor: colors.border },
+          ]}
+        >
           {(['expense', 'income'] as const).map((t) => {
             const active = type === t;
-            const c      = t === 'income' ? colors.incomeText : colors.expenseText;
+            const c = t === 'income' ? colors.incomeText : colors.expenseText;
             return (
               <TouchableOpacity
                 key={t}
-                onPress={async () => { await Haptics.selectionAsync(); setType(t); }}
+                onPress={async () => {
+                  await Haptics.selectionAsync();
+                  setType(t);
+                }}
                 activeOpacity={0.8}
                 style={[
                   styles.typeBtn,
-                  active && { backgroundColor: `${c}14`, borderColor: `${c}40`, borderWidth: 1 },
+                  active && {
+                    backgroundColor: `${c}14`,
+                    borderColor: `${c}40`,
+                    borderWidth: 1,
+                  },
                 ]}
               >
                 <Ionicons
@@ -230,10 +301,14 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
                   size={16}
                   color={active ? c : colors.textTertiary}
                 />
-                <Text style={{
-                  fontSize: FontSize.sm, fontWeight: '600', textTransform: 'capitalize',
-                  color: active ? c : colors.textTertiary,
-                }}>
+                <Text
+                  style={{
+                    fontSize: FontSize.sm,
+                    fontWeight: '600',
+                    textTransform: 'capitalize',
+                    color: active ? c : colors.textTertiary,
+                  }}
+                >
                   {t}
                 </Text>
               </TouchableOpacity>
@@ -241,7 +316,6 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           })}
         </View>
 
-        {/* Amount display */}
         <View style={styles.amountSection}>
           <Text style={[styles.currencyPrefix, { color: amount ? accentColor : colors.textTertiary }]}>
             {sym}
@@ -254,7 +328,6 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           <Text style={[styles.amountErr, { color: colors.expenseText }]}>{amountError}</Text>
         ) : null}
 
-        {/* Keypad */}
         <View style={styles.keypad}>
           {KEYPAD.map((row, ri) => (
             <View key={ri} style={styles.keyRow}>
@@ -263,46 +336,66 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
                   key={key}
                   onPress={() => handleKey(key)}
                   activeOpacity={0.6}
-                  style={[styles.key, {
-                    backgroundColor: key === 'del' ? colors.cardElevated : colors.card,
-                    borderColor:     colors.border,
-                  }]}
+                  style={[
+                    styles.key,
+                    {
+                      backgroundColor: key === 'del' ? colors.cardElevated : colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
                 >
-                  {key === 'del'
-                    ? <Ionicons name="backspace-outline" size={20} color={colors.textSecondary} />
-                    : <Text style={[styles.keyText, { color: colors.text }]}>{key}</Text>
-                  }
+                  {key === 'del' ? (
+                    <Ionicons name="backspace-outline" size={20} color={colors.textSecondary} />
+                  ) : (
+                    <Text style={[styles.keyText, { color: colors.text }]}>{key}</Text>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
           ))}
         </View>
 
-        {/* Category */}
         <View style={styles.field}>
           <CategoryPicker type={type} selected={category} onSelect={setCategory} />
         </View>
 
-        {/* Date chips */}
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing[2] }}>
-            {[-6,-5,-4,-3,-2,-1,0].map((offset) => {
-              const d      = new Date(); d.setDate(d.getDate() + offset);
-              const ds     = format(d, 'yyyy-MM-dd');
-              const label  = offset === 0 ? 'Today' : offset === -1 ? 'Yesterday' : format(d, 'EEE d');
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: Spacing[2] }}
+          >
+            {[-6, -5, -4, -3, -2, -1, 0].map((offset) => {
+              const d = new Date();
+              d.setDate(d.getDate() + offset);
+              const ds = format(d, 'yyyy-MM-dd');
+              const label =
+                offset === 0 ? 'Today' : offset === -1 ? 'Yesterday' : format(d, 'EEE d');
               const active = date === ds;
               return (
                 <TouchableOpacity
                   key={offset}
-                  onPress={async () => { await Haptics.selectionAsync(); setDate(ds); }}
-                  style={[styles.dateChip, {
-                    backgroundColor: active ? colors.primaryMuted : colors.cardElevated,
-                    borderColor:     active ? colors.primaryMutedBorder : colors.border,
-                    borderWidth:     active ? 1.5 : 1,
-                  }]}
+                  onPress={async () => {
+                    await Haptics.selectionAsync();
+                    setDate(ds);
+                  }}
+                  style={[
+                    styles.dateChip,
+                    {
+                      backgroundColor: active ? colors.primaryMuted : colors.cardElevated,
+                      borderColor: active ? colors.primaryMutedBorder : colors.border,
+                      borderWidth: active ? 1.5 : 1,
+                    },
+                  ]}
                 >
-                  <Text style={{ fontSize: FontSize.sm, fontWeight: active ? '600' : '400', color: active ? colors.primaryLight : colors.textSecondary }}>
+                  <Text
+                    style={{
+                      fontSize: FontSize.sm,
+                      fontWeight: active ? '600' : '400',
+                      color: active ? colors.primaryLight : colors.textSecondary,
+                    }}
+                  >
                     {label}
                   </Text>
                 </TouchableOpacity>
@@ -311,31 +404,48 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           </ScrollView>
         </View>
 
-        {/* Note */}
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Note</Text>
-          <View style={[styles.noteBox, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.noteBox,
+              { backgroundColor: colors.cardElevated, borderColor: colors.border },
+            ]}
+          >
             <TextInput
               value={note}
               onChangeText={setNote}
-              placeholder={type === 'income' ? 'e.g. Monthly salary' : 'e.g. Lunch at café'}
+              placeholder={type === 'income' ? 'e.g. Monthly salary' : 'e.g. Lunch at cafe'}
               placeholderTextColor={colors.textTertiary}
               style={{ fontSize: FontSize.md, color: colors.text, padding: 0 }}
-              multiline maxLength={100} returnKeyType="done"
+              multiline
+              maxLength={100}
+              returnKeyType="done"
             />
           </View>
         </View>
 
-        {/* Receipt Attachment */}
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Receipt</Text>
           {receipt ? (
-            <View style={[styles.receiptCard, { backgroundColor: colors.cardElevated, borderColor: colors.border }]}>
-              <Image 
-                source={{ uri: receipt }} 
-                style={styles.receiptImage}
-                resizeMode="cover"
-              />
+            <View
+              style={[
+                styles.receiptCard,
+                { backgroundColor: colors.cardElevated, borderColor: colors.border },
+              ]}
+            >
+              <View
+                style={[
+                  styles.receiptImageFrame,
+                  { backgroundColor: colors.backgroundSecondary },
+                ]}
+              >
+                <Image
+                  source={{ uri: receipt }}
+                  style={[styles.receiptImage, { aspectRatio: receiptAspectRatio }]}
+                  resizeMode="contain"
+                />
+              </View>
               <View style={styles.receiptOverlay}>
                 <TouchableOpacity
                   onPress={presentReceiptOptions}
@@ -357,15 +467,25 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
             <TouchableOpacity
               onPress={presentReceiptOptions}
               activeOpacity={0.7}
-              style={[styles.receiptEmpty, { 
-                backgroundColor: colors.cardElevated, 
-                borderColor: `${colors.textTertiary}40`,
-              }]}
+              style={[
+                styles.receiptEmpty,
+                {
+                  backgroundColor: colors.cardElevated,
+                  borderColor: `${colors.textTertiary}40`,
+                },
+              ]}
             >
               <View style={[styles.receiptIconCircle, { backgroundColor: `${colors.primary}18` }]}>
                 <Ionicons name="receipt-outline" size={28} color={colors.primary} />
               </View>
-              <Text style={{ color: colors.textSecondary, fontSize: FontSize.sm, fontWeight: '500', marginTop: Spacing[2] }}>
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  fontSize: FontSize.sm,
+                  fontWeight: '500',
+                  marginTop: Spacing[2],
+                }}
+              >
                 Tap to attach a receipt
               </Text>
               <Text style={{ color: colors.textTertiary, fontSize: FontSize.xs, marginTop: 2 }}>
@@ -382,12 +502,11 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
           style={{ marginTop: Spacing[2], marginHorizontal: Spacing[4] }}
         />
 
-        {/* Delete button — only shown in edit mode */}
         {isEdit && (
           <TouchableOpacity
             onPress={handleDelete}
             activeOpacity={0.75}
-            style={[styles.deleteBtn, { borderColor: colors.expenseText + '40' }]}
+            style={[styles.deleteBtn, { borderColor: `${colors.expenseText}40` }]}
           >
             <Ionicons name="trash-outline" size={16} color={colors.expenseText} />
             <Text style={[styles.deleteBtnText, { color: colors.expenseText }]}>
@@ -405,45 +524,75 @@ export const AddTransactionScreen: React.FC<Props> = ({ navigation, route }) => 
 const styles = StyleSheet.create({
   root: { flex: 1 },
   nav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing[4], paddingVertical: Spacing[3],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
   },
   navTitle: { fontSize: FontSize.lg, fontWeight: '600' },
   scroll: { paddingHorizontal: Spacing[4] },
   typeToggle: {
-    flexDirection: 'row', borderRadius: Radius.full,
-    padding: Spacing[1.5], marginBottom: Spacing[6],
-    gap: Spacing[2], borderWidth: 1,
+    flexDirection: 'row',
+    borderRadius: Radius.full,
+    padding: Spacing[1.5],
+    marginBottom: Spacing[6],
+    gap: Spacing[2],
+    borderWidth: 1,
   },
   typeBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: Spacing[3], borderRadius: Radius.full, gap: 6,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing[3],
+    borderRadius: Radius.full,
+    gap: 6,
   },
   amountSection: {
-    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center',
-    marginBottom: Spacing[2], gap: Spacing[1.5],
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
+    gap: Spacing[1.5],
   },
   currencyPrefix: { fontSize: 26, fontWeight: '600', marginBottom: 8 },
   amountDisplay: {
-    fontSize: 62, fontWeight: '700', letterSpacing: -3,
-    lineHeight: 70, fontVariant: ['tabular-nums'] as any,
+    fontSize: 62,
+    fontWeight: '700',
+    letterSpacing: -3,
+    lineHeight: 70,
+    fontVariant: ['tabular-nums'] as any,
   },
   amountErr: { textAlign: 'center', fontSize: FontSize.sm, marginBottom: Spacing[3] },
-  keypad:  { gap: Spacing[2], marginBottom: Spacing[5] },
-  keyRow:  { flexDirection: 'row', gap: Spacing[2] },
+  keypad: { gap: Spacing[2], marginBottom: Spacing[5] },
+  keyRow: { flexDirection: 'row', gap: Spacing[2] },
   key: {
-    flex: 1, height: 56, borderRadius: Radius.lg, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    height: 56,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   keyText: { fontSize: FontSize['2xl'], fontWeight: '400' },
-  field:   { marginBottom: Spacing[5] },
-  fieldLabel: { fontSize: FontSize.sm, fontWeight: '500', marginBottom: Spacing[2], letterSpacing: 0.3 },
+  field: { marginBottom: Spacing[5] },
+  fieldLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+    marginBottom: Spacing[2],
+    letterSpacing: 0.3,
+  },
   dateChip: {
-    paddingHorizontal: Spacing[4], paddingVertical: Spacing[2.5], borderRadius: Radius.full,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2.5],
+    borderRadius: Radius.full,
   },
   noteBox: {
-    borderRadius: Radius.lg, borderWidth: 1,
-    padding: Spacing[4], minHeight: 68,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    padding: Spacing[4],
+    minHeight: 68,
   },
   deleteBtn: {
     flexDirection: 'row',
@@ -465,9 +614,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
+  receiptImageFrame: {
+    padding: Spacing[3],
+  },
   receiptImage: {
     width: '100%',
-    height: 200,
+    maxHeight: 360,
   },
   receiptOverlay: {
     flexDirection: 'row',

@@ -75,7 +75,11 @@ export async function authenticateForUnlockAsync(
     disableDeviceFallback: false,
     cancelLabel: 'Cancel',
     fallbackLabel: 'Use device passcode',
-    biometricsSecurityLevel: support.hasStrongBiometrics ? 'strong' : 'weak',
+    // On Android, requesting "strong" can exclude camera-based face unlock on
+    // devices where fingerprint is Class 3 but face is only Class 2. Using
+    // "weak" still allows strong biometrics while also permitting enrolled face
+    // unlock when the device exposes it through BiometricPrompt.
+    biometricsSecurityLevel: Platform.OS === 'android' ? 'weak' : undefined,
   });
 
   return result.success;

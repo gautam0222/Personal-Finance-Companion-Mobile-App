@@ -15,6 +15,7 @@ import { useRecurringStore }    from '../store/useRecurringStore';
 import { OnboardingScreen }     from '../screens/OnboardingScreen';
 import { AddTransactionScreen } from '../screens/AddTransactionScreen';
 import { BackupScreen }         from '../screens/BackupScreen';
+import { RecurringScreen }      from '../screens/RecurringScreen';
 import { TabNavigator }         from './TabNavigator';
 
 import type { RootStackParamList } from '../types';
@@ -101,6 +102,15 @@ export const RootNavigator: React.FC = () => {
           presentation:      'card',
           gestureEnabled:    true,
           gestureDirection:  'vertical',
+        }}
+      />
+      <Stack.Screen
+        name="Recurring"
+        component={RecurringScreen}
+        options={{
+          animation:         'slide_from_right',
+          presentation:      'card',
+          gestureEnabled:    true,
         }}
       />
     </Stack.Navigator>

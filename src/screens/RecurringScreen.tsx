@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, StyleSheet,
     Modal, KeyboardAvoidingView, Platform, TextInput,
@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { format, addMonths, addWeeks, addYears } from 'date-fns';
+import { format, addMonths, addWeeks, addYears, isValid, parseISO } from 'date-fns';
 
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/useAppStore';
@@ -39,6 +39,12 @@ function getStartDateOptions() {
     ];
 }
 
+function isValidDateInput(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = parseISO(value);
+    return isValid(parsed) && format(parsed, 'yyyy-MM-dd') === value;
+}
+
 // ── Add / Edit Modal ──────────────────────────────────────────────────────────
 interface ModalProps {
     visible: boolean;
@@ -66,6 +72,20 @@ const AddEditModal: React.FC<ModalProps> = ({ visible, editRule, onClose }) => {
 
     const startOpts = getStartDateOptions();
 
+    useEffect(() => {
+        if (!visible) return;
+
+        setType(editRule?.type ?? 'expense');
+        setAmount(editRule ? String(editRule.amount) : '');
+        setCategory(editRule?.category ?? 'food');
+        setFrequency(editRule?.frequency ?? 'monthly');
+        setStartDate(editRule?.startDate ?? format(new Date(), 'yyyy-MM-dd'));
+        setEndDate(editRule?.endDate ?? '');
+        setNote(editRule?.note ?? '');
+        setHasEndDate(!!editRule?.endDate);
+        setAmtError('');
+    }, [visible, editRule]);
+
     const resetAndClose = () => {
         setType('expense'); setAmount(''); setCategory('food');
         setFrequency('monthly'); setStartDate(format(new Date(), 'yyyy-MM-dd'));
@@ -80,19 +100,36 @@ const AddEditModal: React.FC<ModalProps> = ({ visible, editRule, onClose }) => {
             setAmtError('Enter a valid amount');
             return;
         }
+        if (!isValidDateInput(startDate)) {
+            Alert.alert('Invalid start date', 'Use the format YYYY-MM-DD and enter a real calendar date.');
+            return;
+        }
+        if (hasEndDate) {
+            if (!endDate || !isValidDateInput(endDate)) {
+                Alert.alert('Invalid end date', 'Use the format YYYY-MM-DD and enter a real calendar date.');
+                return;
+            }
+            if (endDate < startDate) {
+                Alert.alert('Invalid date range', 'End date cannot be earlier than the start date.');
+                return;
+            }
+        }
         setSaving(true);
         try {
             const data = {
                 type, amount: parsed, category, frequency,
                 startDate, note,
                 endDate: hasEndDate && endDate ? endDate : undefined,
-                isActive: true,
+                isActive: editRule?.isActive ?? true,
             };
             if (isEdit && editRule) {
                 await updateRule(editRule.id, {
                     ...data,
-                    // Don't reset nextDueDate on edit if rule is already active
-                    nextDueDate: editRule.nextDueDate,
+                    // If the rule has never executed, editing the start date should
+                    // shift the first scheduled occurrence too.
+                    nextDueDate: editRule.totalExecuted === 0
+                        ? startDate
+                        : editRule.nextDueDate,
                 });
             } else {
                 await addRule({ ...data });

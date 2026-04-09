@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { AppSettings, Goal, Transaction } from '../types';
@@ -14,7 +14,7 @@ export async function exportAsJSON(
   goals: Goal[],
 ): Promise<void> {
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const uri = `${FileSystem.cacheDirectory}flo-export-${ts}.json`;
+  const file = new File(Paths.cache, `flo-export-${ts}.json`);
 
   const payload = {
     app: 'WalletWarp',
@@ -24,11 +24,12 @@ export async function exportAsJSON(
     goals,
   };
 
-  await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2), {
-    encoding: FileSystem.EncodingType.UTF8,
+  file.create({ intermediates: true, overwrite: true });
+  file.write(JSON.stringify(payload, null, 2), {
+    encoding: 'utf8',
   });
 
-  await shareFile(uri, 'application/json', 'public.json');
+  await shareFile(file.uri, 'application/json', 'public.json');
 }
 
 // ─── CSV ───────────────────────────────────────────────────────────────────────
@@ -55,13 +56,14 @@ export async function exportAsCSV(
 
   const csv = header + rows;
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const uri = `${FileSystem.cacheDirectory}flo-transactions-${ts}.csv`;
+  const file = new File(Paths.cache, `flo-transactions-${ts}.csv`);
 
-  await FileSystem.writeAsStringAsync(uri, csv, {
-    encoding: FileSystem.EncodingType.UTF8,
+  file.create({ intermediates: true, overwrite: true });
+  file.write(csv, {
+    encoding: 'utf8',
   });
 
-  await shareFile(uri, 'text/csv', 'public.comma-separated-values-text');
+  await shareFile(file.uri, 'text/csv', 'public.comma-separated-values-text');
 }
 
 // ─── PDF ───────────────────────────────────────────────────────────────────────

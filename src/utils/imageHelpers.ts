@@ -1,30 +1,48 @@
-/**
- * Receipt image helpers.
- *
- * Strategy: We store the URI returned by expo-image-picker directly.
- * On both iOS and Android, the picked/captured image is written to the
- * app's internal cache directory, which persists for the lifetime of
- * the app installation.  No FileSystem copy is needed.
- *
- * If the user uninstalls/reinstalls the app, the cache is cleared
- * along with AsyncStorage, so data stays consistent.
- */
+import { Directory, File, Paths } from 'expo-file-system';
 
-/**
- * "Save" a receipt — in practice we just return the URI as-is because
- * expo-image-picker already places it in a persistent cache location.
- */
-export async function saveReceiptImageLocally(
-  sourceUri: string,
-): Promise<string> {
-  // The URI from ImagePicker is already a local file path we can use.
-  return sourceUri;
+const receiptsDirectory = new Directory(Paths.document, 'receipts');
+
+function getFileExtension(uri: string): string {
+  const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+  return match ? match[1].toLowerCase() : 'jpg';
 }
 
-/**
- * "Delete" a receipt — we simply clear the reference.
- * The OS reclaims orphaned cache files automatically.
- */
-export async function deleteReceiptImage(_uri: string): Promise<void> {
-  // No-op: the cached file will be cleaned up by the OS when space is needed.
+async function ensureReceiptsDirectory(): Promise<void> {
+  if (!receiptsDirectory.exists) {
+    receiptsDirectory.create({ idempotent: true, intermediates: true });
+  }
+}
+
+export async function saveReceiptImageLocally(sourceUri: string): Promise<string> {
+  if (!sourceUri) {
+    throw new Error('Receipt image URI is missing.');
+  }
+
+  if (sourceUri.startsWith(receiptsDirectory.uri)) {
+    return sourceUri;
+  }
+
+  await ensureReceiptsDirectory();
+
+  const ext = getFileExtension(sourceUri);
+  const targetFile = new File(
+    receiptsDirectory,
+    `receipt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`,
+  );
+  const sourceFile = new File(sourceUri);
+
+  sourceFile.copy(targetFile);
+
+  return targetFile.uri;
+}
+
+export async function deleteReceiptImage(uri: string): Promise<void> {
+  if (!uri || !uri.startsWith(receiptsDirectory.uri)) {
+    return;
+  }
+
+  const file = new File(uri);
+  if (file.exists) {
+    file.delete();
+  }
 }
