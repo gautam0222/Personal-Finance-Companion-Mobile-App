@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   StyleSheet,
   Text,
@@ -26,13 +25,9 @@ interface Props {
   secondaryActionIcon?: keyof typeof Ionicons.glyphMap;
   onSecondaryAction?: () => void;
   secondaryActionDisabled?: boolean;
-  /** Set to true while biometric auth is in-flight to show a spinner */
-  biometricAuthenticating?: boolean;
 }
 
-const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
-
-// Animated dot — springs up slightly when filled
+// Animated dot - springs up slightly when filled
 function AnimatedDot({ filled, color, border }: { filled: boolean; color: string; border: string }) {
   const scale = useRef(new Animated.Value(filled ? 1 : 0.85)).current;
 
@@ -52,7 +47,7 @@ function AnimatedDot({ filled, color, border }: { filled: boolean; color: string
         }).start();
       }
     });
-  }, [filled]);
+  }, [filled, scale]);
 
   return (
     <Animated.View
@@ -81,26 +76,25 @@ export const PasscodePanel: React.FC<Props> = ({
   secondaryActionIcon = 'scan-outline',
   onSecondaryAction,
   secondaryActionDisabled = false,
-  biometricAuthenticating = false,
 }) => {
   const { colors, isDark } = useTheme();
   const tone = error ? colors.expenseText : status ? colors.primaryLight : colors.textSecondary;
 
-  // Shake animation on error
   const shakeX = useRef(new Animated.Value(0)).current;
   const prevError = useRef(error);
+
   useEffect(() => {
     if (error && error !== prevError.current) {
       Animated.sequence([
         Animated.timing(shakeX, { toValue: -8, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeX, { toValue:  8, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: 8, duration: 50, useNativeDriver: true }),
         Animated.timing(shakeX, { toValue: -6, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeX, { toValue:  6, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeX, { toValue:  0, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: 6, duration: 50, useNativeDriver: true }),
+        Animated.timing(shakeX, { toValue: 0, duration: 50, useNativeDriver: true }),
       ]).start();
     }
     prevError.current = error;
-  }, [error]);
+  }, [error, shakeX]);
 
   const renderDigit = (digit: string) => (
     <TouchableOpacity
@@ -133,7 +127,6 @@ export const PasscodePanel: React.FC<Props> = ({
         },
       ]}
     >
-      {/* Shield icon */}
       <View style={[styles.hero, { backgroundColor: `${colors.primary}14`, borderColor: `${colors.primary}35` }]}>
         <Ionicons name="shield-checkmark-outline" size={28} color={colors.primaryLight} />
       </View>
@@ -141,7 +134,6 @@ export const PasscodePanel: React.FC<Props> = ({
       <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
 
-      {/* Animated dots */}
       <Animated.View style={[styles.dots, { transform: [{ translateX: shakeX }] }]}>
         {[0, 1, 2, 3].map((index) => (
           <AnimatedDot
@@ -153,20 +145,14 @@ export const PasscodePanel: React.FC<Props> = ({
         ))}
       </Animated.View>
 
-      {/* Status / error line — always reserves space */}
       <Text style={[styles.meta, { color: tone }]} numberOfLines={1}>
-        {error ?? status ?? (processing && !biometricAuthenticating ? 'Checking passcode…' : '')}
+        {error ?? status ?? (processing ? 'Checking passcode...' : '')}
       </Text>
 
-      {/* Numpad grid */}
       <View style={styles.grid}>
-        {/* Row 1-2-3 */}
-        <View style={styles.row}>{['1','2','3'].map(renderDigit)}</View>
-        {/* Row 4-5-6 */}
-        <View style={styles.row}>{['4','5','6'].map(renderDigit)}</View>
-        {/* Row 7-8-9 */}
-        <View style={styles.row}>{['7','8','9'].map(renderDigit)}</View>
-        {/* Row biometric | 0 | backspace */}
+        <View style={styles.row}>{['1', '2', '3'].map(renderDigit)}</View>
+        <View style={styles.row}>{['4', '5', '6'].map(renderDigit)}</View>
+        <View style={styles.row}>{['7', '8', '9'].map(renderDigit)}</View>
         <View style={styles.row}>
           {onSecondaryAction ? (
             <TouchableOpacity
@@ -182,21 +168,15 @@ export const PasscodePanel: React.FC<Props> = ({
                 },
               ]}
             >
-              {biometricAuthenticating ? (
-                <ActivityIndicator size="small" color={colors.primaryLight} />
-              ) : (
-                <>
-                  <Ionicons name={secondaryActionIcon} size={20} color={colors.primaryLight} />
-                  {secondaryActionLabel != null && (
-                    <Text
-                      style={[styles.secondaryLabel, { color: colors.primaryLight }]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                    >
-                      {secondaryActionLabel}
-                    </Text>
-                  )}
-                </>
+              <Ionicons name={secondaryActionIcon} size={20} color={colors.primaryLight} />
+              {secondaryActionLabel != null && (
+                <Text
+                  style={[styles.secondaryLabel, { color: colors.primaryLight }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {secondaryActionLabel}
+                </Text>
               )}
             </TouchableOpacity>
           ) : (

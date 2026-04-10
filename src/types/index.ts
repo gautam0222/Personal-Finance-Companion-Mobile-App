@@ -154,7 +154,6 @@ export interface AppSettings {
   hapticsEnabled: boolean;
   monthlyBudget: number;
   appLockEnabled: boolean;
-  biometricLockEnabled: boolean;
   lockGracePeriodSeconds: number;
   notificationsEnabled: boolean;
   reminderHour: number;

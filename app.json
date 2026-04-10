@@ -9,24 +9,21 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#0D0D14"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.walletwarp.app",
-      "infoPlist": {
-        "NSFaceIDUsageDescription": "Use Face ID to unlock WalletWarp"
-      }
+      "bundleIdentifier": "com.walletwarp.app"
     },
     "android": {
       "package": "com.walletwarp.app",
       "versionCode": 1,
       "permissions": [
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
         "CAMERA"
       ],
       "softwareKeyboardLayoutMode": "pan",
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0D14"
@@ -36,10 +33,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font",
       "expo-notifications",
       "expo-secure-store",
-      "expo-local-authentication",
       [
         "expo-image-picker",
         {
@@ -50,16 +45,16 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
-          "image": "./assets/splash.png",
-          "resizeMode": "cover",
+          "backgroundColor": "#0D0D14",
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 200,
           "android": {
-            "backgroundColor": "#FFFFFF",
-            "image": "./assets/splash.png",
-            "resizeMode": "cover"
+            "backgroundColor": "#0D0D14",
+            "image": "./assets/adaptive-icon.png",
+            "imageWidth": 200
           },
           "ios": {
-            "backgroundColor": "#FFFFFF",
+            "backgroundColor": "#0D0D14",
             "image": "./assets/splash.png",
             "resizeMode": "cover"
           }

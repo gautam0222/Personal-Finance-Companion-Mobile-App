@@ -16,10 +16,6 @@ import * as Haptics from 'expo-haptics';
 import { useAppStore } from './src/store/useAppStore';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
-  authenticateForUnlockAsync,
-  getBiometricSupportAsync,
-} from './src/utils/biometrics';
-import {
   hasAppPasscodeAsync,
   verifyAppPasscodeAsync,
 } from './src/utils/passcode';
@@ -35,27 +31,16 @@ export default function App() {
 
   const [securityReady, setSecurityReady] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isVerifyingPasscode, setIsVerifyingPasscode] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [passcodeStatus, setPasscodeStatus] = useState('');
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
 
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const backgroundedAtRef = useRef<number | null>(null);
-  const attemptedBiometricRef = useRef(false);
-
-  const getLockedMessage = useCallback(() => {
-    if (settings.biometricLockEnabled) {
-      return `Use ${biometricLabel} or your 4-digit passcode to continue.`;
-    }
-
-    return 'Enter your 4-digit passcode to continue.';
-  }, [biometricLabel, settings.biometricLockEnabled]);
+  const getLockedMessage = useCallback(() => 'Enter your 4-digit passcode to continue.', []);
 
   const finishUnlock = useCallback(() => {
-    attemptedBiometricRef.current = false;
     backgroundedAtRef.current = null;
     setPasscode('');
     setPasscodeError('');
@@ -65,7 +50,6 @@ export default function App() {
 
   const lockApp = useCallback(
     (message?: string) => {
-      attemptedBiometricRef.current = false;
       setPasscode('');
       setPasscodeError('');
       setPasscodeStatus(message ?? getLockedMessage());
@@ -97,21 +81,15 @@ export default function App() {
         return;
       }
 
-      const [biometrics, hasPasscode] = await Promise.all([
-        getBiometricSupportAsync(),
-        hasAppPasscodeAsync(),
-      ]);
+      const hasPasscode = await hasAppPasscodeAsync();
 
       if (!active) {
         return;
       }
 
-      setBiometricLabel(biometrics.label);
-
       if (!hasPasscode) {
         await updateSettings({
           appLockEnabled: false,
-          biometricLockEnabled: false,
         });
         if (!active) return;
         finishUnlock();
@@ -136,62 +114,6 @@ export default function App() {
     settings.appLockEnabled,
     settings.hasOnboarded,
     updateSettings,
-  ]);
-
-  const unlockWithBiometrics = useCallback(async () => {
-    if (
-      !settings.appLockEnabled ||
-      !settings.biometricLockEnabled ||
-      isAuthenticating
-    ) {
-      return;
-    }
-
-    setIsAuthenticating(true);
-    setPasscodeError('');
-    setPasscodeStatus(`Trying ${biometricLabel}...`);
-
-    try {
-      const success = await authenticateForUnlockAsync('Unlock WalletWarp');
-      if (success) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        finishUnlock();
-        return;
-      }
-
-      setPasscodeStatus(`Use your passcode or try ${biometricLabel} again.`);
-    } finally {
-      setIsAuthenticating(false);
-    }
-  }, [
-    biometricLabel,
-    finishUnlock,
-    isAuthenticating,
-    settings.appLockEnabled,
-    settings.biometricLockEnabled,
-  ]);
-
-  useEffect(() => {
-    if (
-      !securityReady ||
-      !isLocked ||
-      !settings.appLockEnabled ||
-      !settings.biometricLockEnabled ||
-      isAuthenticating ||
-      attemptedBiometricRef.current
-    ) {
-      return;
-    }
-
-    attemptedBiometricRef.current = true;
-    void unlockWithBiometrics();
-  }, [
-    isAuthenticating,
-    isLocked,
-    securityReady,
-    settings.appLockEnabled,
-    settings.biometricLockEnabled,
-    unlockWithBiometrics,
   ]);
 
   useEffect(() => {
@@ -345,18 +267,11 @@ export default function App() {
                   title="WalletWarp is locked"
                   subtitle={getLockedMessage()}
                   code={passcode}
-                  processing={isAuthenticating || isVerifyingPasscode}
+                  processing={isVerifyingPasscode}
                   error={passcodeError}
                   status={passcodeStatus}
                   onDigitPress={handleDigitPress}
                   onBackspace={handleBackspace}
-                  biometricAuthenticating={isAuthenticating}
-                  secondaryActionLabel={settings.biometricLockEnabled ? biometricLabel : undefined}
-                  secondaryActionIcon="scan-outline"
-                  onSecondaryAction={
-                    settings.biometricLockEnabled ? unlockWithBiometrics : undefined
-                  }
-                  secondaryActionDisabled={!settings.biometricLockEnabled || isAuthenticating}
                 />
               </View>
             </View>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, KeyboardAvoidingView, Platform, TextInput, Alert,
@@ -39,9 +39,10 @@ interface ModalProps {
   editEntry?:  NetWorthEntry | null;
   defaultKind?: NetWorthEntryKind;
   onClose:     () => void;
+  onDelete?:   (id: string) => void;
 }
 
-const EntryModal: React.FC<ModalProps> = ({ visible, editEntry, defaultKind = 'asset', onClose }) => {
+const EntryModal: React.FC<ModalProps> = ({ visible, editEntry, defaultKind = 'asset', onClose, onDelete }) => {
   const { colors }                  = useTheme();
   const settings                    = useAppStore((s) => s.settings);
   const { addEntry, updateEntry }   = useNetWorthStore();
@@ -57,6 +58,27 @@ const EntryModal: React.FC<ModalProps> = ({ visible, editEntry, defaultKind = 'a
   const [saving,      setSaving]      = useState(false);
   const [nameErr,     setNameErr]     = useState('');
   const [valueErr,    setValueErr]    = useState('');
+
+  // Sync form fields when editEntry or defaultKind changes (modal reuse across entries)
+  useEffect(() => {
+    if (editEntry) {
+      setKind(editEntry.kind);
+      setSubtype(editEntry.subtype);
+      setName(editEntry.name);
+      setValue(String(editEntry.value));
+      setInstitution(editEntry.institution ?? '');
+      setNote(editEntry.note ?? '');
+    } else {
+      setKind(defaultKind);
+      setSubtype(defaultKind === 'asset' ? 'savings_account' : 'home_loan');
+      setName('');
+      setValue('');
+      setInstitution('');
+      setNote('');
+    }
+    setNameErr('');
+    setValueErr('');
+  }, [editEntry, defaultKind]);
 
   const subtypeList = kind === 'asset'
     ? (Object.entries(ASSET_SUBTYPES)     as [AssetSubtype,     any][])
@@ -216,6 +238,17 @@ const EntryModal: React.FC<ModalProps> = ({ visible, editEntry, defaultKind = 'a
             </View>
 
             <Button label={isEdit ? 'Save Changes' : 'Add to Net Worth'} onPress={handleSave} loading={saving} />
+
+            {isEdit && editEntry && onDelete && (
+              <TouchableOpacity
+                onPress={() => onDelete(editEntry.id)}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: Spacing[4], paddingVertical: Spacing[3] }}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.expenseText} />
+                <Text style={{ fontSize: FontSize.sm, fontWeight: '600', color: colors.expenseText }}>Delete Entry</Text>
+              </TouchableOpacity>
+            )}
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>
@@ -229,7 +262,7 @@ export const NetWorthScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation          = useNavigation();
   const settings            = useAppStore((s) => s.settings);
-  const { entries, snapshots } = useNetWorthStore();
+  const { entries, snapshots, deleteEntry } = useNetWorthStore();
   const sym = settings.currencySymbol;
 
   const [showModal,    setShowModal]    = useState(false);
@@ -241,6 +274,22 @@ export const NetWorthScreen: React.FC = () => {
   };
   const openEdit = (entry: NetWorthEntry) => {
     setEditEntry(entry); setDefaultKind(entry.kind); setShowModal(true);
+  };
+
+  const handleDeleteEntry = (id: string) => {
+    const entry = entries.find((e) => e.id === id);
+    Alert.alert(
+      'Delete Entry',
+      `Remove "${entry?.name ?? 'this entry'}" from your net worth?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          await deleteEntry(id);
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setShowModal(false);
+        }},
+      ],
+    );
   };
 
   const { totalAssets, totalLiabilities, netWorth } = useMemo(() => calcNetWorth(entries),   [entries]);
@@ -443,6 +492,7 @@ export const NetWorthScreen: React.FC = () => {
         editEntry={editEntry}
         defaultKind={defaultKind}
         onClose={() => setShowModal(false)}
+        onDelete={handleDeleteEntry}
       />
     </View>
   );

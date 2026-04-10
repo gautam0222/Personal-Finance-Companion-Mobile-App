@@ -18,6 +18,10 @@ interface AppStore {
   resetApp: () => Promise<void>;
 }
 
+type StoredAppSettings = Partial<AppSettings> & {
+  biometricLockEnabled?: boolean;
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   userName: '',
   avatarUri: undefined,
@@ -28,7 +32,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   hapticsEnabled: true,
   monthlyBudget: 0,
   appLockEnabled: false,
-  biometricLockEnabled: false,
   lockGracePeriodSeconds: 30,
   notificationsEnabled: false,
   reminderHour: 20,
@@ -43,15 +46,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   hydrate: async () => {
     set({ isLoading: true });
     try {
-      const saved = await Storage.get<AppSettings>(Storage.KEYS.APP_SETTINGS);
+      const saved = await Storage.get<StoredAppSettings>(Storage.KEYS.APP_SETTINGS);
       const merged = saved ? { ...DEFAULT_SETTINGS, ...saved } : DEFAULT_SETTINGS;
+      const legacyBiometricLockEnabled = Boolean(saved?.biometricLockEnabled);
       const settings: AppSettings = {
         ...merged,
         appLockEnabled:
           saved != null && 'appLockEnabled' in saved
             ? Boolean(merged.appLockEnabled)
-            : Boolean(merged.biometricLockEnabled),
-        biometricLockEnabled: Boolean(merged.biometricLockEnabled),
+            : legacyBiometricLockEnabled,
         lockGracePeriodSeconds: merged.lockGracePeriodSeconds ?? 30,
       };
       set({ settings, isHydrated: true });

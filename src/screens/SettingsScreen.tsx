@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -39,11 +39,6 @@ import { exportAsJSON, exportAsCSV, exportAsPDF, ExportFormat } from '../utils/e
 import { formatCurrency } from '../utils/formatters';
 import { deleteAvatarImage, saveAvatarImageLocally } from '../utils/imageHelpers';
 import {
-  authenticateForUnlockAsync,
-  getBiometricSupportAsync,
-  type BiometricSupportResult,
-} from '../utils/biometrics';
-import {
   disableDailyReminderAsync,
   ensureNotificationPermissionsAsync,
   formatReminderTime,
@@ -57,7 +52,7 @@ import {
 } from '../utils/passcode';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
-type BusyAction = 'biometric' | 'notifications' | 'export' | 'security' | null;
+type BusyAction = 'notifications' | 'export' | 'security' | null;
 type SecurityIntent = 'enable' | 'change';
 type PasscodeStep = 'create' | 'confirm' | 'verifyCurrent' | 'createNew' | 'confirmNew';
 
@@ -277,7 +272,6 @@ export const SettingsScreen: React.FC = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [nameError, setNameError] = useState('');
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
-  const [biometricSupport, setBiometricSupport] = useState<BiometricSupportResult | null>(null);
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   const [securityIntent, setSecurityIntent] = useState<SecurityIntent>('enable');
   const [passcodeStep, setPasscodeStep] = useState<PasscodeStep>('create');
@@ -285,10 +279,6 @@ export const SettingsScreen: React.FC = () => {
   const [pendingPasscode, setPendingPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [passcodeStatus, setPasscodeStatus] = useState('');
-  // Track biometric-in-flight separately so the button shows a spinner
-  const [biometricAuthFlow, setBiometricAuthFlow] = useState(false);
-  // Stable ref to biometricSupport for use inside async callbacks
-  const biometricSupportRef = useRef<BiometricSupportResult | null>(null);
   // Re-entrancy guard for the passcode-advance effect — a ref so it never
   // triggers a re-render / effect restart (unlike busyAction state).
   const isAdvancingRef = useRef(false);
@@ -297,19 +287,6 @@ export const SettingsScreen: React.FC = () => {
   const sym = settings.currencySymbol;
   const reminderTime = formatReminderTime(settings.reminderHour, settings.reminderMinute);
   const notificationSupport = getNotificationSupport();
-
-  useEffect(() => {
-    let active = true;
-    void getBiometricSupportAsync().then((support) => {
-      if (active) {
-        setBiometricSupport(support);
-        biometricSupportRef.current = support;
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const resetPasscodeFlow = () => {
     // Reset the re-entrancy guard so a re-opened modal starts clean.
@@ -396,32 +373,6 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
-  const handleBiometricToggle = async (enabled: boolean) => {
-    setBusyAction('biometric');
-    try {
-      if (enabled) {
-        const support = await getBiometricSupportAsync();
-        setBiometricSupport(support);
-        biometricSupportRef.current = support;
-        if (!support.supported) {
-          Alert.alert('Biometric unlock unavailable', support.reason);
-          return;
-        }
-
-        setBiometricAuthFlow(true);
-        const authenticated = await authenticateForUnlockAsync(`Enable ${support.label} unlock`);
-        setBiometricAuthFlow(false);
-        if (!authenticated) return;
-      }
-
-      await updateSettings({ biometricLockEnabled: enabled });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } finally {
-      setBiometricAuthFlow(false);
-      setBusyAction(null);
-    }
-  };
-
   const handleNotificationsToggle = async (enabled: boolean) => {
     setBusyAction('notifications');
     try {
@@ -499,21 +450,12 @@ export const SettingsScreen: React.FC = () => {
     setPasscodeStatus('Saving passcode...');
     try {
       await saveAppPasscodeAsync(code);
-      let nextBiometricSetting = false;
-      const support = biometricSupportRef.current;
-      if (support?.supported) {
-        setBiometricAuthFlow(true);
-        setPasscodeStatus(`Enable ${support.label}?`);
-        nextBiometricSetting = await authenticateForUnlockAsync(`Enable ${support.label} unlock`);
-        setBiometricAuthFlow(false);
-      }
-      await updateSettings({ appLockEnabled: true, biometricLockEnabled: nextBiometricSetting });
+      await updateSettings({ appLockEnabled: true });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       closeSecurityModal(true);
     } catch {
       Alert.alert('App lock failed', 'Flo could not save your passcode. Please try again.');
     } finally {
-      setBiometricAuthFlow(false);
       setBusyAction(null);
       setPasscodeStatus('');
     }
@@ -631,7 +573,7 @@ export const SettingsScreen: React.FC = () => {
       case 'create':
         return {
           title: 'Create your app passcode',
-          subtitle: 'Choose a 4-digit code for moments when biometrics are unavailable.',
+          subtitle: 'Choose a 4-digit code to unlock Flo.',
         };
       case 'confirm':
         return { title: 'Confirm your passcode', subtitle: 'Enter the same 4 digits again.' };
@@ -660,7 +602,7 @@ export const SettingsScreen: React.FC = () => {
     // the Alert appears, causing it to snap back visually.
     Alert.alert(
       'Turn off app lock?',
-      'Flo will stop asking for your passcode or biometrics when reopened.',
+      'Flo will stop asking for your passcode when reopened.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -671,7 +613,7 @@ export const SettingsScreen: React.FC = () => {
             setBusyAction('security');
             try {
               await removeAppPasscodeAsync();
-              await updateSettings({ appLockEnabled: false, biometricLockEnabled: false });
+              await updateSettings({ appLockEnabled: false });
               await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } finally {
               setBusyAction(null);
@@ -762,7 +704,7 @@ export const SettingsScreen: React.FC = () => {
 
 
   const securityHelperCopy = settings.appLockEnabled
-    ? `Flo relocks ${formatLockDelay(settings.lockGracePeriodSeconds).toLowerCase()} after you leave the app. Your 4-digit passcode always stays available as backup.${settings.biometricLockEnabled && biometricSupport?.supported ? ` ${biometricSupport.label} stays on for faster unlock.` : ''}`
+    ? `Flo relocks ${formatLockDelay(settings.lockGracePeriodSeconds).toLowerCase()} after you leave the app and unlocks with your 4-digit passcode.`
     : 'Turn on App Lock to add a 4-digit passcode and protect the app when you leave it.';
 
   return (
@@ -923,23 +865,7 @@ export const SettingsScreen: React.FC = () => {
             }
           />
           {settings.appLockEnabled && (
-            <Row icon="key-outline" label="Backup Passcode" value="Change" onPress={openChangePasscode} />
-          )}
-          {settings.appLockEnabled && biometricSupport?.supported && (
-            <Row
-              icon="scan-outline"
-              label={`Use ${biometricSupport.label}`}
-              value={busyAction === 'biometric' ? 'Updating...' : undefined}
-              rightElement={
-                <Switch
-                  value={settings.biometricLockEnabled}
-                  onValueChange={(val) => void handleBiometricToggle(val)}
-                  disabled={busyAction === 'biometric' || busyAction === 'security'}
-                  trackColor={{ false: colors.border, true: `${colors.primary}99` }}
-                  thumbColor={settings.biometricLockEnabled ? colors.primary : colors.textTertiary}
-                />
-              }
-            />
+            <Row icon="key-outline" label="Passcode" value="Change" onPress={openChangePasscode} />
           )}
           <Row
             icon="timer-outline"
@@ -950,11 +876,6 @@ export const SettingsScreen: React.FC = () => {
           />
         </Group>
         <Text style={[styles.helperText, { color: colors.textTertiary }]}>{securityHelperCopy}</Text>
-        {!biometricSupport?.supported && biometricSupport?.reason && settings.appLockEnabled && (
-          <Text style={[styles.helperText, { color: colors.textTertiary, marginTop: 6 }]}>
-            {biometricSupport.reason}
-          </Text>
-        )}
 
         <Text style={[styles.groupLabel, { color: colors.textTertiary }]}>Reminders</Text>
         <Group>
@@ -1140,7 +1061,6 @@ export const SettingsScreen: React.FC = () => {
               secondaryActionIcon={passcodeValue.length === 4 ? 'checkmark' : undefined}
               secondaryActionLabel={passcodeValue.length === 4 ? 'Submit' : undefined}
               onSecondaryAction={passcodeValue.length === 4 ? handlePasscodeSubmit : undefined}
-              biometricAuthenticating={biometricAuthFlow}
             />
             <Text style={[styles.helperText, { color: colors.textTertiary, marginTop: Spacing[4] }]}>
               Your passcode stays on this device in secure storage.
@@ -1282,4 +1202,3 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
   },
 });
-

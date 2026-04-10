@@ -64,7 +64,7 @@ const AddFriendModal: React.FC<{ visible: boolean; onClose: () => void }> = ({ v
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={[p.modal, { backgroundColor: useTheme().colors.background }]}>
+        <View style={[p.modal, { backgroundColor: colors.background }]}>
           <View style={[p.nav, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Ionicons name="close" size={22} color={colors.textSecondary} />
@@ -387,8 +387,9 @@ const FriendDetailModal: React.FC<{
   onSettle:    () => void;
   onSettleOne: (splitId: string) => void;
   onUnsettle:  (splitId: string) => void;
-  onDelete:    () => void;
-}> = ({ visible, balance, splits, friends, sym, onClose, onSettle, onSettleOne, onUnsettle, onDelete }) => {
+  onDeleteFriend: () => void;
+  onDeleteSplit:  (splitId: string) => void;
+}> = ({ visible, balance, splits, friends, sym, onClose, onSettle, onSettleOne, onUnsettle, onDeleteFriend, onDeleteSplit }) => {
   const { colors } = useTheme();
   if (!balance) return null;
 
@@ -403,7 +404,7 @@ const FriendDetailModal: React.FC<{
             <Ionicons name="arrow-back" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
           <Text style={[p.navTitle, { color: colors.text }]}>{balance.friend.name}</Text>
-          <TouchableOpacity onPress={onDelete} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity onPress={onDeleteFriend} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Ionicons name="trash-outline" size={18} color={colors.expenseText} />
           </TouchableOpacity>
         </View>
@@ -455,7 +456,13 @@ const FriendDetailModal: React.FC<{
                 if (!participant) return null;
                 const settled = participant.status === 'settled';
                 return (
-                  <View key={split.id} style={[p.historyRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TouchableOpacity
+                    key={split.id}
+                    activeOpacity={0.9}
+                    onLongPress={() => onDeleteSplit(split.id)}
+                    delayLongPress={500}
+                    style={[p.historyRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  >
                     <View style={p.historyLeft}>
                       <Text style={[p.historyNote, { color: colors.text }]} numberOfLines={1}>{split.note}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing[1.5], marginTop: 2 }}>
@@ -487,7 +494,7 @@ const FriendDetailModal: React.FC<{
                         </TouchableOpacity>
                       )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -504,17 +511,24 @@ export const SplitsScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation          = useNavigation();
   const settings            = useAppStore((s) => s.settings);
-  const { friends, splits, settleAllForFriend, settleOneParticipant, unsettle, deleteFriend } = useSplitStore();
+  const { friends, splits, settleAllForFriend, settleOneParticipant, unsettle, deleteFriend, deleteSplit } = useSplitStore();
   const sym = settings.currencySymbol;
 
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [showAddSplit,  setShowAddSplit]  = useState(false);
-  const [selBalance,    setSelBalance]    = useState<FriendBalance | null>(null);
+  const [selFriendId,   setSelFriendId]   = useState<string | null>(null);
   const [showDetail,    setShowDetail]    = useState(false);
 
   // All balances derived from splits array — never stored
   const balances    = useMemo(() => calcFriendBalances(splits, friends), [splits, friends]);
   const outstanding = useMemo(() => totalOutstanding(splits), [splits]);
+
+  // Always derive the selected balance from the latest data so it stays fresh
+  // after settle/unsettle actions without needing to manually update state.
+  const selBalance = useMemo(
+    () => (selFriendId ? balances.find((b) => b.friendId === selFriendId) ?? null : null),
+    [selFriendId, balances],
+  );
 
   const withBalance  = balances.filter((b) => b.totalOwed > 0.005);
   const withoutBalance = balances.filter((b) => b.totalOwed <= 0.005);
@@ -534,7 +548,7 @@ export const SplitsScreen: React.FC = () => {
     );
   };
 
-  const handleDelete = () => {
+  const handleDeleteFriend = () => {
     if (!selBalance) return;
     Alert.alert(
       'Remove Friend',
@@ -544,6 +558,20 @@ export const SplitsScreen: React.FC = () => {
         { text: 'Remove', style: 'destructive', onPress: async () => {
           await deleteFriend(selBalance.friendId);
           setShowDetail(false);
+        }},
+      ],
+    );
+  };
+
+  const handleDeleteSplit = (splitId: string) => {
+    Alert.alert(
+      'Delete Split',
+      'Remove this shared expense? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          await deleteSplit(splitId);
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }},
       ],
     );
@@ -613,7 +641,7 @@ export const SplitsScreen: React.FC = () => {
                 {withBalance.map((b) => (
                   <TouchableOpacity
                     key={b.friendId}
-                    onPress={() => { setSelBalance(b); setShowDetail(true); }}
+                    onPress={() => { setSelFriendId(b.friendId); setShowDetail(true); }}
                     activeOpacity={0.75}
                     style={[s.friendCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                   >
@@ -642,7 +670,7 @@ export const SplitsScreen: React.FC = () => {
                 {withoutBalance.map((b) => (
                   <TouchableOpacity
                     key={b.friendId}
-                    onPress={() => { setSelBalance(b); setShowDetail(true); }}
+                    onPress={() => { setSelFriendId(b.friendId); setShowDetail(true); }}
                     activeOpacity={0.75}
                     style={[s.friendCard, { backgroundColor: colors.card, borderColor: colors.border }]}
                   >
@@ -705,7 +733,8 @@ export const SplitsScreen: React.FC = () => {
           unsettle(splitId, selBalance.friendId);
           Haptics.selectionAsync();
         }}
-        onDelete={handleDelete}
+        onDeleteFriend={handleDeleteFriend}
+        onDeleteSplit={handleDeleteSplit}
       />
     </View>
   );

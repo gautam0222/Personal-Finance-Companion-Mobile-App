@@ -12,6 +12,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../hooks/useTheme';
 import { useAppStore } from '../store/useAppStore';
 import { useTransactionStore } from '../store/useTransactionStore';
+import { useNetWorthStore } from '../store/useNetWorthStore';
+import { useSplitStore } from '../store/useSplitStore';
 
 import { BalanceCard }    from '../components/home/BalanceCard';
 import { KarmaRing }      from '../components/home/KarmaRing';
@@ -23,7 +25,8 @@ import { EmptyState }     from '../components/common/EmptyState';
 import { Card }           from '../components/common/Card';
 
 import { getWeeklyBarData } from '../utils/calculations';
-import { Spacing } from '../constants/spacing';
+import { formatCurrency } from '../utils/formatters';
+import { Spacing, Radius } from '../constants/spacing';
 import { FontSize } from '../constants/typography';
 import type { RootStackParamList } from '../types';
 
@@ -78,6 +81,24 @@ export const HomeScreen: React.FC = () => {
   const anim3 = useFadeIn(220);
   const anim4 = useFadeIn(280);
 
+  // Net Worth & Splits summary data for quick-access cards
+  const nwEntries = useNetWorthStore((s) => s.entries);
+  const nwTotals = React.useMemo(() => {
+    let assets = 0, liabilities = 0;
+    for (const e of nwEntries) {
+      if (e.kind === 'asset') assets += e.value;
+      else liabilities += e.value;
+    }
+    return { assets, liabilities, netWorth: assets - liabilities };
+  }, [nwEntries]);
+  const splitFriends = useSplitStore((s) => s.friends);
+  const splitEntries = useSplitStore((s) => s.splits);
+  const splitOutstanding = React.useMemo(() =>
+    splitEntries.reduce((total, sp) =>
+      total + sp.participants.filter((p) => p.status === 'pending').reduce((s, p) => s + p.share, 0),
+    0),
+  [splitEntries]);
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -129,6 +150,48 @@ export const HomeScreen: React.FC = () => {
         <Animated.View style={[styles.section, anim2]}>
           <SectionHeader title="This Month" />
           <QuickStats />
+        </Animated.View>
+
+        {/* Quick-access: Net Worth & Splits */}
+        <Animated.View style={[styles.section, anim2]}>
+          <View style={styles.shortcutRow}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('NetWorth')}
+              activeOpacity={0.82}
+              style={[styles.shortcutCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={[styles.shortcutIcon, { backgroundColor: colors.incomeMuted }]}>
+                <Ionicons name="trending-up-outline" size={18} color={colors.incomeText} />
+              </View>
+              <Text style={[styles.shortcutLabel, { color: colors.text }]}>Net Worth</Text>
+              <Text style={[styles.shortcutValue, { color: nwTotals.netWorth >= 0 ? colors.incomeText : colors.expenseText }]}
+                numberOfLines={1}
+              >
+                {nwEntries.length > 0 ? formatCurrency(nwTotals.netWorth, settings.currencySymbol, false, true) : '—'}
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ position: 'absolute', right: 14, top: 14 }} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Splits')}
+              activeOpacity={0.82}
+              style={[styles.shortcutCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <View style={[styles.shortcutIcon, { backgroundColor: colors.primaryMuted }]}>
+                <Ionicons name="people-outline" size={18} color={colors.primaryLight} />
+              </View>
+              <Text style={[styles.shortcutLabel, { color: colors.text }]}>Splits</Text>
+              <Text style={[styles.shortcutValue, { color: splitOutstanding > 0 ? colors.incomeText : colors.textTertiary }]}
+                numberOfLines={1}
+              >
+                {splitFriends.length > 0
+                  ? splitOutstanding > 0
+                    ? `${formatCurrency(splitOutstanding, settings.currencySymbol, false, true)} owed`
+                    : 'All settled'
+                  : '—'}
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ position: 'absolute', right: 14, top: 14 }} />
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         {/* Weekly chart */}
@@ -205,4 +268,33 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing[8], gap: Spacing[2],
   },
   chartEmptyText: { fontSize: FontSize.sm },
+  shortcutRow: {
+    flexDirection: 'row',
+    gap: Spacing[3],
+  },
+  shortcutCard: {
+    flex: 1,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: Spacing[4],
+    gap: Spacing[2],
+    position: 'relative' as const,
+  },
+  shortcutIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  shortcutLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: '600' as const,
+    letterSpacing: -0.2,
+  },
+  shortcutValue: {
+    fontSize: FontSize.xs,
+    fontWeight: '700' as const,
+    fontVariant: ['tabular-nums'] as any,
+  },
 });
