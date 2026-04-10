@@ -1,11 +1,34 @@
-// Recurring types
-export type RecurrenceFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+// Transaction
+export interface Transaction {
+  id: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  date: string; // YYYY-MM-DD
+  note: string;
+  receiptUri?: string; // Local file URI to the image
+  createdAt: string;
+  updatedAt: string;
+  isRecurring?: boolean;
+  recurringId?: string;
+  splitId?: string; // linked Split.id - optional
+}
+
+// Recurring
+export type RecurrenceFrequency =
+  | 'daily'
+  | 'weekly'
+  | 'biweekly'
+  | 'monthly'
+  | 'quarterly'
+  | 'yearly';
 
 export interface RecurringTransaction {
   id: string;
   amount: number;
   type: 'income' | 'expense';
   category: string;
+  note: string;
   frequency: RecurrenceFrequency;
   startDate: string;
   endDate?: string;
@@ -13,23 +36,82 @@ export interface RecurringTransaction {
   lastExecutedDate?: string;
   isActive: boolean;
   totalExecuted: number;
-  note: string;
   createdAt: string;
 }
 
-// Transaction
-export interface Transaction {
+// Net Worth
+export type NetWorthEntryKind = 'asset' | 'liability';
+
+export type AssetSubtype =
+  | 'savings_account'
+  | 'fixed_deposit'
+  | 'mutual_fund'
+  | 'stocks'
+  | 'real_estate'
+  | 'gold'
+  | 'crypto'
+  | 'cash'
+  | 'other_asset';
+
+export type LiabilitySubtype =
+  | 'home_loan'
+  | 'car_loan'
+  | 'personal_loan'
+  | 'credit_card'
+  | 'education_loan'
+  | 'other_liability';
+
+export type NetWorthSubtype = AssetSubtype | LiabilitySubtype;
+
+export interface NetWorthEntry {
   id: string;
-  amount: number;
-  type: 'income' | 'expense';
-  category: string;
-  date: string;        // ISO date string (YYYY-MM-DD)
-  note: string;
-  receiptUri?: string; // Local file URI to the image
-  isRecurring?: boolean;
-  recurringId?: string;
-  createdAt: string;   // ISO datetime
+  kind: NetWorthEntryKind; // 'asset' | 'liability'
+  subtype: NetWorthSubtype; // granular category id
+  name: string; // e.g. "HDFC Savings", "ICICI Home Loan"
+  value: number; // current value / outstanding balance
+  institution?: string;
+  note?: string;
+  createdAt: string;
   updatedAt: string;
+}
+
+export interface NetWorthSnapshot {
+  monthKey: string; // "yyyy-MM"
+  totalAssets: number;
+  totalLiabilities: number;
+  netWorth: number;
+  recordedAt: string; // ISO datetime of last update this month
+}
+
+// Splits / Shared Expenses
+export interface Friend {
+  id: string;
+  name: string;
+  phone?: string;
+  avatarColor: string;
+  createdAt: string;
+}
+
+export type SplitStatus = 'pending' | 'settled';
+export type SplitMode = 'equal' | 'custom';
+
+export interface SplitParticipant {
+  friendId: string;
+  share: number; // amount this person owes you
+  status: SplitStatus;
+  settledAt?: string;
+}
+
+export interface Split {
+  id: string;
+  transactionId?: string; // splits can exist without a transaction
+  totalAmount: number;
+  myShare: number; // your portion = totalAmount - sum(participants.share)
+  splitMode: SplitMode;
+  note: string;
+  date: string; // YYYY-MM-DD
+  participants: SplitParticipant[];
+  createdAt: string;
 }
 
 // Goal
@@ -41,9 +123,9 @@ export interface Goal {
   description: string;
   targetAmount: number;
   currentAmount: number;
-  deadline: string;    // ISO date string
+  deadline: string;
   type: GoalType;
-  category?: string;   // used for budget-limit goals
+  category?: string;
   icon: string;
   color: string;
   createdAt: string;
@@ -52,7 +134,7 @@ export interface Goal {
   completedAt?: string;
 }
 
-// App settings
+// App Settings
 export type ThemeMode = 'dark' | 'light';
 export type Currency = 'INR' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AED';
 
@@ -79,16 +161,16 @@ export interface AppSettings {
   reminderMinute: number;
 }
 
-// Karma / gamification
+// Karma
 export type KarmaLevel = 'Novice' | 'Tracker' | 'Saver' | 'Master' | 'Legend';
 
 export interface KarmaData {
-  score: number;         // 0-100
+  score: number;
   streakDays: number;
   lastLogDate: string | null;
   level: KarmaLevel;
-  badge: string;         // emoji
-  nextLevelAt: number;   // score needed for next level
+  badge: string;
+  nextLevelAt: number;
 }
 
 // Insights
@@ -113,7 +195,7 @@ export interface Category {
   applicableTo: ('income' | 'expense')[];
 }
 
-// Chart data
+// Charts
 export interface BarDataPoint {
   label: string;
   value: number;
@@ -138,6 +220,8 @@ export type RootStackParamList = {
   MainTabs: undefined;
   AddTransaction: { transactionId?: string } | undefined;
   Recurring: undefined;
+  NetWorth: undefined;
+  Splits: undefined;
   Backup: undefined;
 };
 

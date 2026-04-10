@@ -889,6 +889,23 @@ export const SettingsScreen: React.FC = () => {
           />
         </Group>
 
+        <Text style={[styles.groupLabel, { color: colors.textTertiary }]}>Features</Text>
+        <Group>
+          <Row
+            icon="trending-up-outline"
+            label="Net Worth"
+            value="Assets & liabilities"
+            onPress={() => navigation.navigate('NetWorth')}
+          />
+          <Row
+            icon="people-outline"
+            label="Splits"
+            value="Shared expenses"
+            onPress={() => navigation.navigate('Splits')}
+            last
+          />
+        </Group>
+
         <Text style={[styles.groupLabel, { color: colors.textTertiary }]}>Security</Text>
         <Group>
           <Row
@@ -1265,5 +1282,4 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
   },
 });
-
 

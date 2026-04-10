@@ -11,11 +11,15 @@ import { useAppStore }          from '../store/useAppStore';
 import { useTransactionStore }  from '../store/useTransactionStore';
 import { useGoalStore }         from '../store/useGoalStore';
 import { useRecurringStore }    from '../store/useRecurringStore';
+import { useNetWorthStore }     from '../store/useNetWorthStore';
+import { useSplitStore }        from '../store/useSplitStore';
 
 import { OnboardingScreen }     from '../screens/OnboardingScreen';
 import { AddTransactionScreen } from '../screens/AddTransactionScreen';
 import { BackupScreen }         from '../screens/BackupScreen';
 import { RecurringScreen }      from '../screens/RecurringScreen';
+import { NetWorthScreen }       from '../screens/NetWorthScreen';
+import { SplitsScreen }         from '../screens/SplitsScreen';
 import { TabNavigator }         from './TabNavigator';
 
 import type { RootStackParamList } from '../types';
@@ -48,6 +52,10 @@ export const RootNavigator: React.FC = () => {
   const recurringHydrated     = useRecurringStore((s) => s.isHydrated);
   const recurringLoading      = useRecurringStore((s) => s.isLoading);
   const runEngine             = useRecurringStore((s) => s.runEngine);
+  const hydrateNetWorth       = useNetWorthStore((s) => s.hydrate);
+  const netWorthHydrated      = useNetWorthStore((s) => s.isHydrated);
+  const hydrateSplits         = useSplitStore((s) => s.hydrate);
+  const splitsHydrated        = useSplitStore((s) => s.isHydrated);
   const [bootstrapped, setBootstrapped] = useState(false);
 
   // Hydrate all stores in parallel on first mount.
@@ -61,6 +69,8 @@ export const RootNavigator: React.FC = () => {
       hydrateTransactions(),
       hydrateGoals(),
       hydrateRecurring(),
+      hydrateNetWorth(),
+      hydrateSplits(),
     ])
       .then(async () => {
         await runEngine(bulkAddTransactions).catch((err) =>
@@ -92,6 +102,8 @@ export const RootNavigator: React.FC = () => {
     !transactionsHydrated ||
     !goalsHydrated ||
     !recurringHydrated ||
+    !netWorthHydrated ||
+    !splitsHydrated ||
     appLoading ||
     transactionsLoading ||
     goalsLoading ||
@@ -142,6 +154,24 @@ export const RootNavigator: React.FC = () => {
       <Stack.Screen
         name="Recurring"
         component={RecurringScreen}
+        options={{
+          animation:         'slide_from_right',
+          presentation:      'card',
+          gestureEnabled:    true,
+        }}
+      />
+      <Stack.Screen
+        name="NetWorth"
+        component={NetWorthScreen}
+        options={{
+          animation:         'slide_from_right',
+          presentation:      'card',
+          gestureEnabled:    true,
+        }}
+      />
+      <Stack.Screen
+        name="Splits"
+        component={SplitsScreen}
         options={{
           animation:         'slide_from_right',
           presentation:      'card',
